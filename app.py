@@ -108,4 +108,4 @@ if st.session_state['logboek']:
         file_name=f"logboek_extra_toevoegingen_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime='text/csv'
     )
-#--
+#---
