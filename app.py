@@ -13,7 +13,7 @@ CREDENTIALS = Credentials.from_service_account_info(
     scopes=SCOPE
 )
 
-SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"  # <-- Vervang dit met je echte Google Sheet ID
+SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"  # <-- Vervang met jouw Google Sheet ID
 SHEET_NAME = "Logboek Afvalcontainers"
 
 def voeg_toe_aan_logboek(data_dict):
@@ -27,14 +27,13 @@ def voeg_toe_aan_logboek(data_dict):
             data_dict["Datum"]
         ])
     except Exception as e:
-        import traceback
         st.error("⚠️ Fout bij loggen naar Google Sheets:")
         st.exception(e)
 
 # 📁 Bestandslocatie dataset
 DATA_PATH = "huidige_dataset.csv"
 
-# Laad eerder opgeslagen dataset als deze bestaat
+# Laad eerder opgeslagen dataset
 if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
     st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
 
@@ -70,7 +69,7 @@ if rol == "Admin":
         df1_filtered.to_csv(DATA_PATH, index=False)
         st.success("✅ Gegevens succesvol verwerkt en gedeeld met gebruikers.")
 
-# -------------------------- GEBRUIKER BEKIJKT & BEWERKT --------------------------
+# -------------------------- GEBRUIKER DEEL --------------------------
 if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     st.header("📋 Containeroverzicht")
 
@@ -89,7 +88,7 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     if content_filter != "Alles":
         df_display = df_display[df_display['Content type'] == content_filter]
 
-    # Alleen geselecteerde kolommen tonen
+    # Kolommen om te tonen
     zichtbaar = [
         "Container name",
         "Address",
@@ -103,23 +102,23 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         "Extra meegegeven"
     ]
 
-    st.subheader("✅ Pas 'Extra meegegeven' direct aan")
+    # Verdeel in bewerkbaar en alleen-lezen
+    nog_bewerkbaar = df_display[df_display["Extra meegegeven"] == False]
+    al_gelogd = df_display[df_display["Extra meegegeven"] == True]
 
-    # Alleen zichtbare kolommen tonen
+    # Bewerken van nog niet gelogde rijen
+    st.subheader("✏️ Bewerkbare rijen")
     editable_df = st.data_editor(
-        df_display[zichtbaar],
+        nog_bewerkbaar[zichtbaar],
         use_container_width=True,
         num_rows="dynamic",
         key="editor",
-        disabled={
-            "Extra meegegeven": df_display["Extra meegegeven"].astype(bool)
-        }
+        disabled=[col for col in zichtbaar if col != "Extra meegegeven"]
     )
 
-    # Wijzigingen detecteren
     st.subheader("💾 Sla wijzigingen op")
     if st.button("✅ Wijzigingen toepassen en loggen"):
-        gewijzigd = editable_df != df_display[zichtbaar]
+        gewijzigd = editable_df != nog_bewerkbaar[zichtbaar]
         gewijzigde_rijen = gewijzigd.any(axis=1)
 
         wijzigingen_geteld = 0
@@ -141,11 +140,12 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
                 voeg_toe_aan_logboek(log_entry)
                 wijzigingen_geteld += 1
 
-        # Sla dataset op
+        # Sla bij
         st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
-
         st.success(f"✔️ {wijzigingen_geteld} wijziging(en) opgeslagen en gelogd.")
 
-    # Opslaan centrale dataset
-    st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
+    # Alleen-lezen: reeds gelogde rijen
+    st.subheader("🔒 Reeds gelogde rijen (alleen-lezen)")
+    st.dataframe(al_gelogd[zichtbaar], use_container_width=True)
+
 #--
