@@ -84,12 +84,16 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         loc_filter = st.selectbox("🔍 Filter op Location code", ["Alles"] + sorted(df['Location code'].unique()))
     with col2:
         content_filter = st.selectbox("🔍 Filter op Content type", ["Alles"] + sorted(df['Content type'].unique()))
+    with st.columns(3)[2]:
+        oproute_filter = st.selectbox("🔍 Filter op OpRoute", ["Alles"] + sorted(df['OpRoute'].unique()))
 
     df_display = df.copy()
     if loc_filter != "Alles":
         df_display = df_display[df_display['Location code'] == loc_filter]
     if content_filter != "Alles":
         df_display = df_display[df_display['Content type'] == content_filter]
+    if oproute_filter != "Alles":
+        df_display = df_display[df_display['OpRoute'] == oproute_filter]
 
     zichtbaar = [
         "Container name",
