@@ -110,9 +110,8 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
 
     bewerkbare_rijen = df_display[df_display["Extra meegegeven"] == False]
 
-    with st.expander("🔄 Opties"):
-        if st.button("🔄 Ververs bewerkbare rijen"):
-            st.rerun()
+    if st.button("🔄 Ververs bewerkbare rijen"):
+        st.rerun()
 
     st.subheader("✏️ Bewerkbare rijen (AgGrid)")
     gb = GridOptionsBuilder.from_dataframe(bewerkbare_rijen[zichtbaar])
