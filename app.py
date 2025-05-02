@@ -5,7 +5,6 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
-import streamlit as st
 
 # 📁 Google Sheets via secrets
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -110,7 +109,7 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
 
     bewerkbare_rijen = df_display[df_display["Extra meegegeven"] == False]
 
-    st.subheader("✏️ Bewerkbare rijen (klik om aan te passen)")
+    st.subheader("✏️ Bewerkbare rijen (AgGrid)")
     gb = GridOptionsBuilder.from_dataframe(bewerkbare_rijen[zichtbaar])
     gb.configure_default_column(editable=False, sortable=True, filter=True)
     gb.configure_column("Extra meegegeven", editable=True)
@@ -130,12 +129,18 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     if st.button("✅ Wijzigingen toepassen en loggen"):
         wijzigingen_geteld = 0
 
-        for index, row in updated_df.iterrows():
-            oude_waarde = st.session_state['df1_filtered'].at[index, "Extra meegegeven"]
+        for _, row in updated_df.iterrows():
+            # Zoek unieke rij terug op basis van Location code + Content type
+            mask = (
+                (st.session_state['df1_filtered']['Location code'] == row["Location code"]) &
+                (st.session_state['df1_filtered']['Content type'] == row["Content type"])
+            )
+
+            oude_waarde = st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"].values[0]
             nieuwe_waarde = row["Extra meegegeven"]
 
             if nieuwe_waarde != oude_waarde:
-                st.session_state['df1_filtered'].at[index, "Extra meegegeven"] = nieuwe_waarde
+                st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"] = nieuwe_waarde
 
                 log_entry = {
                     "Container name": row["Container name"],
