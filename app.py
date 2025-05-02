@@ -110,7 +110,7 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
 
     bewerkbare_rijen = df_display[df_display["Extra meegegeven"] == False]
 
-    if st.button("🔄 Ververs bewerkbare rijen"):
+    if st.button("🔄"):
         st.rerun()
 
     st.subheader("✏️ Bewerkbare rijen (AgGrid)")
