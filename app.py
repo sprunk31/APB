@@ -108,7 +108,7 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     # Kolommen definiëren
     disabled_matrix = {
         "Extra meegegeven": [
-            waarde is True for waarde in df_display["Extra meegegeven"]
+            waarde == True for waarde in df_display["Extra meegegeven"]
         ]
     }
 
