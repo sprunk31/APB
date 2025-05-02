@@ -157,7 +157,7 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
 
         st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
         st.success(f"✔️ {wijzigingen_geteld} wijziging(en) opgeslagen en gelogd.")
-        st.rerun(get_script_run_ctx())
+        st.rerun()
 
     st.subheader("🔒 Reeds gelogde rijen")
     reeds_gelogd = df_display[df_display["Extra meegegeven"] == True]
