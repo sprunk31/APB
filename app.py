@@ -6,7 +6,7 @@ import os
 st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
 st.title("♻️ Afvalcontainerbeheer Dashboard")
 
-# 🔁 Laad bestaand logboek als het al bestaat
+# 🔁 Logboekbestand
 LOG_PATH = "logboek_persistent.csv"
 if os.path.exists(LOG_PATH):
     st.session_state['logboek'] = pd.read_csv(LOG_PATH).to_dict(orient="records")
@@ -37,17 +37,15 @@ if rol == "Admin":
         # Toevoegen van kolommen
         df1_filtered['CombinatieTelling'] = df1_filtered.groupby(['Location code', 'Content type'])['Content type'].transform('count')
         df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(['Location code', 'Content type'])['Fill level (%)'].transform('mean')
-        df1_filtered['KomtVoorInDf2'] = df1_filtered['Container name'].isin(df2['Omschrijving'].values).map({True: 'Ja', False: 'Nee'})
+        df1_filtered['OpRoute'] = df1_filtered['Container name'].isin(df2['Omschrijving'].values).map({True: 'Ja', False: 'Nee'})
 
-        # Zorg dat Oprout kolom aanwezig is
-        if 'Oprout' not in df1_filtered.columns:
-            df1_filtered['Oprout'] = False
+        # Hernoem en initialiseer Extra meegegeven
+        df1_filtered['Extra meegegeven'] = False
 
-        # Opslaan in session_state
         st.session_state['df1_filtered'] = df1_filtered
         st.success("✅ Gegevens verwerkt en opgeslagen voor gebruikers.")
 
-# 3. Voor gebruikers: data inzien en aanpassen
+# 3. Voor gebruikers: data bekijken en bewerken
 if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     st.header("📋 Containeroverzicht en bewerking")
 
@@ -66,32 +64,37 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     if content_filter != "Alles":
         df_display = df_display[df_display['Content type'] == content_filter]
 
-    # Rijen met Oprout == False
-    df_false = df_display[df_display['Oprout'] == False]
+    st.subheader("📄 Actuele gegevens")
 
-    st.subheader("🛠️ Oprout aanpassen voor geselecteerde rijen")
-    selected = st.multiselect("Selecteer rijen (index) om als 'Extra toegevoegd' te markeren", df_false.index.tolist())
+    # Kolommen uitsluiten uit weergave
+    kolommen_uitgesloten = ['Device Location', 'External group ID']
+    kolommen_weergeven = [col for col in df_display.columns if col not in kolommen_uitgesloten]
 
-    if selected:
-        for i in selected:
-            df_display.at[i, 'Oprout'] = "Extra toegevoegd"
-            st.session_state['df1_filtered'].at[i, 'Oprout'] = "Extra toegevoegd"
+    # Toon tabel
+    st.dataframe(df_display[kolommen_weergeven], use_container_width=True)
+
+    st.subheader("✅ Extra meegegeven aanpassen (checkbox)")
+
+    for index, row in df_display.iterrows():
+        nieuwe_waarde = st.checkbox(
+            f"{row['Location code']} - {row['Content type']} - {row['Fill level (%)']}%",
+            value=row['Extra meegegeven'],
+            key=f"checkbox_{index}"
+        )
+
+        if nieuwe_waarde != row['Extra meegegeven']:
+            st.session_state['df1_filtered'].at[index, 'Extra meegegeven'] = nieuwe_waarde
 
             log_entry = {
-                'Location code': df_display.at[i, 'Location code'],
-                'Content type': df_display.at[i, 'Content type'],
-                'Fill level (%)': df_display.at[i, 'Fill level (%)'],
+                'Location code': row['Location code'],
+                'Content type': row['Content type'],
+                'Fill level (%)': row['Fill level (%)'],
                 'Datum': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
 
             st.session_state['logboek'].append(log_entry)
-
-        # ⏺️ Schrijf log direct weg naar CSV
-        pd.DataFrame(st.session_state['logboek']).to_csv(LOG_PATH, index=False)
-        st.success(f"✅ {len(selected)} rijen gemarkeerd en gelogd.")
-
-    st.subheader("📄 Actuele gegevens")
-    st.dataframe(df_display, use_container_width=True)
+            pd.DataFrame(st.session_state['logboek']).to_csv(LOG_PATH, index=False)
+            st.success(f"✔️ Wijziging opgeslagen en gelogd: {log_entry['Location code']}")
 
 # 4. Logboek downloaden
 if st.session_state['logboek']:
@@ -100,7 +103,6 @@ if st.session_state['logboek']:
 
     st.dataframe(log_df, use_container_width=True)
 
-    # Downloadknop
     csv = log_df.to_csv(index=False).encode('utf-8')
     st.download_button(
         label="📥 Download logboek als CSV",
@@ -108,4 +110,5 @@ if st.session_state['logboek']:
         file_name=f"logboek_extra_toevoegingen_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime='text/csv'
     )
+
 #---
