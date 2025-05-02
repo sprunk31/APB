@@ -131,11 +131,8 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         wijzigingen_geteld = 0
 
         for _, row in updated_df.iterrows():
-            # Zoek unieke rij terug op basis van Location code + Content type
-            mask = (
-                (st.session_state['df1_filtered']['Location code'] == row["Location code"]) &
-                (st.session_state['df1_filtered']['Content type'] == row["Content type"])
-            )
+            # ✅ Zoek rij uitsluitend op basis van Container name
+            mask = (st.session_state['df1_filtered']['Container name'] == row["Container name"])
 
             oude_waarde = st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"].values[0]
             nieuwe_waarde = row["Extra meegegeven"]
@@ -163,3 +160,4 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     st.subheader("🔒 Reeds gelogde rijen")
     reeds_gelogd = df_display[df_display["Extra meegegeven"] == True]
     st.dataframe(reeds_gelogd[zichtbaar], use_container_width=True)
+
