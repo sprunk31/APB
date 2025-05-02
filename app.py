@@ -80,20 +80,38 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
 
     # Filters
     col1, col2, col3 = st.columns(3)
+
     with col1:
-        loc_filter = st.selectbox("🔍 Filter op Location code", ["Alles"] + sorted(df['Location code'].unique()))
+        loc = st.selectbox(
+            "🔍 Filter op Location code",
+            ["Alles"] + sorted(df['Location code'].unique()),
+            index=(["Alles"] + sorted(df['Location code'].unique())).index(st.session_state["loc_filter"]),
+            key="loc_filter"
+        )
+
     with col2:
-        content_filter = st.selectbox("🔍 Filter op Content type", ["Alles"] + sorted(df['Content type'].unique()))
+        content = st.selectbox(
+            "🔍 Filter op Content type",
+            ["Alles"] + sorted(df['Content type'].unique()),
+            index=(["Alles"] + sorted(df['Content type'].unique())).index(st.session_state["content_filter"]),
+            key="content_filter"
+        )
+
     with col3:
-        oproute_filter = st.selectbox("🔍 Filter op OpRoute", ["Alles"] + sorted(df['OpRoute'].unique()))
+        op_route = st.selectbox(
+            "🔍 Filter op OpRoute",
+            ["Alles"] + sorted(df['OpRoute'].unique()),
+            index=(["Alles"] + sorted(df['OpRoute'].unique())).index(st.session_state["oproute_filter"]),
+            key="oproute_filter"
+        )
 
     df_display = df.copy()
-    if loc_filter != "Alles":
-        df_display = df_display[df_display['Location code'] == loc_filter]
-    if content_filter != "Alles":
-        df_display = df_display[df_display['Content type'] == content_filter]
-    if oproute_filter != "Alles":
-        df_display = df_display[df_display['OpRoute'] == oproute_filter]
+    if st.session_state["loc_filter"] != "Alles":
+        df_display = df_display[df_display['Location code'] == st.session_state["loc_filter"]]
+    if st.session_state["content_filter"] != "Alles":
+        df_display = df_display[df_display['Content type'] == st.session_state["content_filter"]]
+    if st.session_state["oproute_filter"] != "Alles":
+        df_display = df_display[df_display['OpRoute'] == st.session_state["oproute_filter"]]
 
     zichtbaar = [
         "Container name",
