@@ -110,7 +110,9 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         use_container_width=True,
         num_rows="dynamic",
         key="editor",
-        disabled=[col for col in zichtbaar if col != "Extra meegegeven"]
+        disabled={
+            "Extra meegegeven": df_display["Extra meegegeven"]
+        }
     )
 
     # Wijzigingen detecteren
