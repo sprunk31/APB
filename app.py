@@ -6,24 +6,24 @@ import os
 st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
 st.title("♻️ Afvalcontainerbeheer Dashboard")
 
-# 📁 Paden voor opslag
+# 📁 Bestandspaden
 LOG_PATH = "logboek_persistent.csv"
 DATA_PATH = "huidige_dataset.csv"
 
-# 🔁 Laad logboek als het bestaat
+# 🔁 Logboek laden als het al bestaat
 if os.path.exists(LOG_PATH):
     st.session_state['logboek'] = pd.read_csv(LOG_PATH).to_dict(orient="records")
 else:
     st.session_state['logboek'] = []
 
-# 🧠 Laad eerder opgeslagen dataset (alleen als deze er is en nog niet is ingelezen)
+# 🧠 Dataset laden uit CSV als deze eerder is opgeslagen
 if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
     st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
 
-# 1. Gebruikersrol
+# 1. Rolselectie
 rol = st.selectbox("👤 Kies je rol", ["Gebruiker", "Admin"])
 
-# 2. Admin uploadt nieuwe Excel-bestanden
+# 2. Admin: bestanden uploaden
 if rol == "Admin":
     st.header("📤 Upload Excel-bestanden (alleen voor Admin)")
 
@@ -34,26 +34,25 @@ if rol == "Admin":
         df1 = pd.read_excel(file1)
         df2 = pd.read_excel(file2)
 
-        # Filter regels
+        # Filterregels
         df1_filtered = df1[
             (df1['Operational state'] == 'In use') &
             (df1['Status'] == 'In use') &
             (df1['On hold'] == 'No')
         ].copy()
 
-        # Toevoegen van kolommen
+        # Kolommen toevoegen
         df1_filtered['CombinatieTelling'] = df1_filtered.groupby(['Location code', 'Content type'])['Content type'].transform('count')
         df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(['Location code', 'Content type'])['Fill level (%)'].transform('mean')
         df1_filtered['OpRoute'] = df1_filtered['Container name'].isin(df2['Omschrijving'].values).map({True: 'Ja', False: 'Nee'})
 
-        # Initialiseer of herstart kolom Extra meegegeven
+        # Voeg bewerkbare kolom toe
         df1_filtered['Extra meegegeven'] = False
 
-        # Opslaan in session_state en naar CSV
+        # Opslaan
         st.session_state['df1_filtered'] = df1_filtered
         df1_filtered.to_csv(DATA_PATH, index=False)
-
-        st.success("✅ Nieuwe data verwerkt en gedeeld met gebruikers.")
+        st.success("✅ Nieuwe gegevens verwerkt en gedeeld met gebruikers.")
 
 # 3. Gebruikersinterface
 if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
@@ -74,40 +73,45 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     if content_filter != "Alles":
         df_display = df_display[df_display['Content type'] == content_filter]
 
-    # Toon actuele gegevens zonder overbodige kolommen
-    st.subheader("📄 Actuele gegevens")
+    # Kolommen uitsluiten
     uitsluiten = ['Device Location', 'External group ID']
     zichtbaar = [col for col in df_display.columns if col not in uitsluiten]
-    st.dataframe(df_display[zichtbaar], use_container_width=True)
 
-    # Checkboxes voor Extra meegegeven
-    st.subheader("✅ Extra meegegeven aanpassen")
-    for index, row in df_display.iterrows():
-        checkbox_key = f"checkbox_{index}"
-        nieuw = st.checkbox(
-            f"{row['Location code']} - {row['Content type']} - {row['Fill level (%)']}%",
-            value=row['Extra meegegeven'],
-            key=checkbox_key
-        )
+    st.subheader("🖊️ Pas 'Extra meegegeven' direct aan in de tabel")
 
-        if nieuw != row['Extra meegegeven']:
-            st.session_state['df1_filtered'].at[index, 'Extra meegegeven'] = nieuw
+    # Toon interactieve editor
+    editable_df = st.data_editor(
+        df_display[zichtbaar],
+        use_container_width=True,
+        num_rows="dynamic",
+        key="editor",
+        disabled=[col for col in zichtbaar if col != "Extra meegegeven"]
+    )
 
-            # Logregel toevoegen
+    # Wijzigingen detecteren
+    gewijzigd = editable_df != df_display[zichtbaar]
+    gewijzigde_rijen = gewijzigd.any(axis=1)
+
+    for index in editable_df[gewijzigde_rijen].index:
+        oude_waarde = df_display.at[index, "Extra meegegeven"]
+        nieuwe_waarde = editable_df.at[index, "Extra meegegeven"]
+
+        if oude_waarde != nieuwe_waarde:
+            st.session_state['df1_filtered'].at[index, "Extra meegegeven"] = nieuwe_waarde
+
             log_entry = {
-                'Location code': row['Location code'],
-                'Content type': row['Content type'],
-                'Fill level (%)': row['Fill level (%)'],
+                'Location code': df_display.at[index, 'Location code'],
+                'Content type': df_display.at[index, 'Content type'],
+                'Fill level (%)': df_display.at[index, 'Fill level (%)'],
                 'Datum': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
             st.session_state['logboek'].append(log_entry)
 
-            # Log en dataset opslaan
-            pd.DataFrame(st.session_state['logboek']).to_csv(LOG_PATH, index=False)
-            st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
-            st.success(f"✔️ Aangepast en opgeslagen: {log_entry['Location code']}")
+    # Opslaan
+    pd.DataFrame(st.session_state['logboek']).to_csv(LOG_PATH, index=False)
+    st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
 
-# 4. Logboek weergeven en downloaden
+# 4. Logboek tonen en downloaden
 if st.session_state['logboek']:
     st.header("📝 Logboek Extra Toevoegingen")
     log_df = pd.DataFrame(st.session_state['logboek'])
@@ -121,5 +125,6 @@ if st.session_state['logboek']:
         file_name=f"logboek_extra_toevoegingen_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
         mime='text/csv'
     )
+
 
 #---
