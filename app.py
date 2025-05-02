@@ -1,9 +1,17 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import os
 
 st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
 st.title("♻️ Afvalcontainerbeheer Dashboard")
+
+# 🔁 Laad bestaand logboek als het al bestaat
+LOG_PATH = "logboek_persistent.csv"
+if os.path.exists(LOG_PATH):
+    st.session_state['logboek'] = pd.read_csv(LOG_PATH).to_dict(orient="records")
+else:
+    st.session_state['logboek'] = []
 
 # 1. Gebruikersrol
 rol = st.selectbox("👤 Kies je rol", ["Gebruiker", "Admin"])
@@ -37,7 +45,6 @@ if rol == "Admin":
 
         # Opslaan in session_state
         st.session_state['df1_filtered'] = df1_filtered
-        st.session_state['logboek'] = []
         st.success("✅ Gegevens verwerkt en opgeslagen voor gebruikers.")
 
 # 3. Voor gebruikers: data inzien en aanpassen
@@ -70,21 +77,25 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
             df_display.at[i, 'Oprout'] = "Extra toegevoegd"
             st.session_state['df1_filtered'].at[i, 'Oprout'] = "Extra toegevoegd"
 
-            st.session_state['logboek'].append({
+            log_entry = {
                 'Location code': df_display.at[i, 'Location code'],
                 'Content type': df_display.at[i, 'Content type'],
                 'Fill level (%)': df_display.at[i, 'Fill level (%)'],
                 'Datum': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            })
+            }
 
+            st.session_state['logboek'].append(log_entry)
+
+        # ⏺️ Schrijf log direct weg naar CSV
+        pd.DataFrame(st.session_state['logboek']).to_csv(LOG_PATH, index=False)
         st.success(f"✅ {len(selected)} rijen gemarkeerd en gelogd.")
 
     st.subheader("📄 Actuele gegevens")
     st.dataframe(df_display, use_container_width=True)
 
 # 4. Logboek downloaden
-if 'logboek' in st.session_state and st.session_state['logboek']:
-    st.header("📝 Logboek Extra Toevoegingen")
+if st.session_state['logboek']:
+    st.header("📝 Logboek Extra Toevoegingen (permanent opgeslagen)")
     log_df = pd.DataFrame(st.session_state['logboek'])
 
     st.dataframe(log_df, use_container_width=True)
