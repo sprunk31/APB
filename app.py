@@ -105,13 +105,14 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
 
     st.subheader("✅ Pas 'Extra meegegeven' direct aan")
 
+    # Alleen zichtbare kolommen tonen
     editable_df = st.data_editor(
         df_display[zichtbaar],
         use_container_width=True,
         num_rows="dynamic",
         key="editor",
         disabled={
-            "Extra meegegeven": df_display["Extra meegegeven"]
+            "Extra meegegeven": df_display["Extra meegegeven"].astype(bool)
         }
     )
 
