@@ -105,8 +105,10 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
 
     st.subheader("✅ Pas 'Extra meegegeven' direct aan")
 
-    # Kolommen definiëren
-    # Kolommen definiëren: alleen disable waar waarde True is
+    # Zorg dat kolom echt boolean is
+    df_display["Extra meegegeven"] = df_display["Extra meegegeven"].astype(bool)
+
+    # Alleen disable waar waarde True is
     disabled_matrix = {
         "Extra meegegeven": df_display["Extra meegegeven"].tolist()
     }
