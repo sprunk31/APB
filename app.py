@@ -125,3 +125,4 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
 
     # Opslaan centrale dataset
     st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
+#--
