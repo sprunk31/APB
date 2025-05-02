@@ -4,7 +4,8 @@ import os
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-from streamlit.runtime.scriptrunner import RerunException, get_script_run_ctx
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+import streamlit as st
 
 # 📁 Google Sheets via secrets
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -31,7 +32,6 @@ def voeg_toe_aan_logboek(data_dict):
     except Exception as e:
         st.error("⚠️ Fout bij loggen naar Google Sheets:")
         st.exception(e)
-
 
 # 📁 Dataset pad
 DATA_PATH = "huidige_dataset.csv"
@@ -79,12 +79,12 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     df = st.session_state['df1_filtered']
 
     # Filters
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         loc_filter = st.selectbox("🔍 Filter op Location code", ["Alles"] + sorted(df['Location code'].unique()))
     with col2:
         content_filter = st.selectbox("🔍 Filter op Content type", ["Alles"] + sorted(df['Content type'].unique()))
-    with st.columns(3)[2]:
+    with col3:
         oproute_filter = st.selectbox("🔍 Filter op OpRoute", ["Alles"] + sorted(df['OpRoute'].unique()))
 
     df_display = df.copy()
@@ -94,8 +94,6 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df_display = df_display[df_display['Content type'] == content_filter]
     if oproute_filter != "Alles":
         df_display = df_display[df_display['OpRoute'] == oproute_filter]
-
-
 
     zichtbaar = [
         "Container name",
@@ -110,50 +108,42 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         "Extra meegegeven"
     ]
 
-    sorteer_op = st.selectbox("📊 Sorteer op kolom", zichtbaar)
-    sorteervolgorde = st.radio("↕️ Sorteervolgorde", ["Oplopend", "Aflopend"])
+    bewerkbare_rijen = df_display[df_display["Extra meegegeven"] == False]
 
-    df_display = df_display.sort_values(
-        by=sorteer_op,
-        ascending=(sorteervolgorde == "Oplopend")
+    st.subheader("✏️ Bewerkbare rijen (klik om aan te passen)")
+    gb = GridOptionsBuilder.from_dataframe(bewerkbare_rijen[zichtbaar])
+    gb.configure_default_column(editable=False, sortable=True, filter=True)
+    gb.configure_column("Extra meegegeven", editable=True)
+    grid_options = gb.build()
+
+    grid_response = AgGrid(
+        bewerkbare_rijen[zichtbaar],
+        gridOptions=grid_options,
+        update_mode=GridUpdateMode.VALUE_CHANGED,
+        height=500,
+        allow_unsafe_jscode=True,
+        reload_data=False
     )
 
-    # Verdeel in bewerkbaar en gelogd
-    nog_bewerkbaar = df_display[df_display["Extra meegegeven"] == False]
-    al_gelogd = df_display[df_display["Extra meegegeven"] == True]
+    updated_df = grid_response["data"]
 
-    # ✏️ Bewerkbare rijen
-    st.subheader("✏️ Bewerkbare rijen")
-    editable_df = st.data_editor(
-        nog_bewerkbaar[zichtbaar],
-        use_container_width=True,
-        num_rows="dynamic",
-        key="editor",
-        disabled=[col for col in zichtbaar if col != "Extra meegegeven"]
-    )
-
-    # 💾 Sla wijzigingen op
-    st.subheader("💾 Sla wijzigingen op")
     if st.button("✅ Wijzigingen toepassen en loggen"):
-        gewijzigd = editable_df != nog_bewerkbaar[zichtbaar]
-        gewijzigde_rijen = gewijzigd.any(axis=1)
-
         wijzigingen_geteld = 0
 
-        for index in editable_df[gewijzigde_rijen].index:
-            nieuwe_waarde = editable_df.at[index, "Extra meegegeven"]
+        for index, row in updated_df.iterrows():
             oude_waarde = st.session_state['df1_filtered'].at[index, "Extra meegegeven"]
+            nieuwe_waarde = row["Extra meegegeven"]
 
             if nieuwe_waarde != oude_waarde:
                 st.session_state['df1_filtered'].at[index, "Extra meegegeven"] = nieuwe_waarde
 
                 log_entry = {
-                    "Container name": editable_df.at[index, "Container name"],
-                    "Address": editable_df.at[index, "Address"],
-                    "City": editable_df.at[index, "City"],
-                    "Location code": editable_df.at[index, "Location code"],
-                    "Content type": editable_df.at[index, "Content type"],
-                    "Fill level (%)": editable_df.at[index, "Fill level (%)"],
+                    "Container name": row["Container name"],
+                    "Address": row["Address"],
+                    "City": row["City"],
+                    "Location code": row["Location code"],
+                    "Content type": row["Content type"],
+                    "Fill level (%)": row["Fill level (%)"],
                     "Datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
 
@@ -161,13 +151,9 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
                 wijzigingen_geteld += 1
 
         st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
+        st.success(f"✔️ {wijzigingen_geteld} wijziging(en) opgeslagen en gelogd.")
+        st.experimental_rerun()
 
-        # 🔁 Refresh app na logging
-        st.toast(f"✔️ {wijzigingen_geteld} wijziging(en) verwerkt. Pagina ververst…")
-        raise RerunException(get_script_run_ctx())
-
-    # 🔒 Alleen-lezen
-    st.subheader("🔒 Reeds gelogde rijen (alleen-lezen)")
-    st.dataframe(al_gelogd[zichtbaar], use_container_width=True)
-
-#--
+    st.subheader("🔒 Reeds gelogde rijen")
+    reeds_gelogd = df_display[df_display["Extra meegegeven"] == True]
+    st.dataframe(reeds_gelogd[zichtbaar], use_container_width=True)
