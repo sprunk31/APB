@@ -7,13 +7,11 @@ from datetime import datetime
 
 # 📁 Google Sheets via secrets
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-
 CREDENTIALS = Credentials.from_service_account_info(
     st.secrets["gcp_service_account"],
     scopes=SCOPE
 )
-
-SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"  # <-- Vervang met jouw Google Sheet ID
+SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"
 SHEET_NAME = "Logboek Afvalcontainers"
 
 def voeg_toe_aan_logboek(data_dict):
@@ -30,20 +28,20 @@ def voeg_toe_aan_logboek(data_dict):
         st.error("⚠️ Fout bij loggen naar Google Sheets:")
         st.exception(e)
 
-# 📁 Bestandslocatie dataset
+# 📁 Dataset pad
 DATA_PATH = "huidige_dataset.csv"
 
-# Laad eerder opgeslagen dataset
+# 📥 Laad bestaande data
 if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
     st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
 
-# Pagina setup
+# 🎨 Pagina setup
 st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
 st.title("♻️ Afvalcontainerbeheer Dashboard")
 
 rol = st.selectbox("👤 Kies je rol", ["Gebruiker", "Admin"])
 
-# -------------------------- ADMIN UPLOAD --------------------------
+# -------------------------- ADMIN --------------------------
 if rol == "Admin":
     st.header("📤 Upload Excel-bestanden")
 
@@ -67,9 +65,9 @@ if rol == "Admin":
 
         st.session_state['df1_filtered'] = df1_filtered
         df1_filtered.to_csv(DATA_PATH, index=False)
-        st.success("✅ Gegevens succesvol verwerkt en gedeeld met gebruikers.")
+        st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
 
-# -------------------------- GEBRUIKER DEEL --------------------------
+# -------------------------- GEBRUIKER --------------------------
 if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     st.header("📋 Containeroverzicht")
 
@@ -88,7 +86,6 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     if content_filter != "Alles":
         df_display = df_display[df_display['Content type'] == content_filter]
 
-    # Kolommen om te tonen
     zichtbaar = [
         "Container name",
         "Address",
@@ -102,11 +99,11 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         "Extra meegegeven"
     ]
 
-    # Verdeel in bewerkbaar en alleen-lezen
+    # Verdeel in bewerkbaar en al gelogd
     nog_bewerkbaar = df_display[df_display["Extra meegegeven"] == False]
     al_gelogd = df_display[df_display["Extra meegegeven"] == True]
 
-    # Bewerken van nog niet gelogde rijen
+    # ✏️ Bewerkbare rijen
     st.subheader("✏️ Bewerkbare rijen")
     editable_df = st.data_editor(
         nog_bewerkbaar[zichtbaar],
@@ -116,6 +113,7 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         disabled=[col for col in zichtbaar if col != "Extra meegegeven"]
     )
 
+    # 💾 Sla wijzigingen op
     st.subheader("💾 Sla wijzigingen op")
     if st.button("✅ Wijzigingen toepassen en loggen"):
         gewijzigd = editable_df != nog_bewerkbaar[zichtbaar]
@@ -140,14 +138,11 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
                 voeg_toe_aan_logboek(log_entry)
                 wijzigingen_geteld += 1
 
-        # Sla bij
+        # ⏺️ Update CSV
         st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
-        st.success(f"✔️ {wijzigingen_geteld} wijziging(en) opgeslagen en gelogd.")
+        st.success(f"✔️ {wijzigingen_geteld} wijziging(en) verwerkt.")
 
-    # Alleen-lezen: reeds gelogde rijen
-    # Alleen-lezen: reeds gelogde rijen (NA updates opnieuw bepalen)
-    if wijzigingen_geteld > 0:
-        # Herbereken de subsets na update
+        # 🔁 Herlaad splitsing na update
         df = st.session_state['df1_filtered']
 
         df_display = df.copy()
@@ -156,22 +151,21 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         if content_filter != "Alles":
             df_display = df_display[df_display['Content type'] == content_filter]
 
-        # Nieuwe splitsing
         nog_bewerkbaar = df_display[df_display["Extra meegegeven"] == False]
         al_gelogd = df_display[df_display["Extra meegegeven"] == True]
 
-        st.subheader("✏️ Bewerkbare rijen (ververs na update)")
-        editable_df = st.data_editor(
+        # Nieuwe editor met schone key
+        st.subheader("✏️ Bewerkbare rijen (verversd)")
+        st.data_editor(
             nog_bewerkbaar[zichtbaar],
             use_container_width=True,
             num_rows="dynamic",
-            key="editor_nieuw",  # nieuwe key om state te resetten
+            key="editor_new",
             disabled=[col for col in zichtbaar if col != "Extra meegegeven"]
         )
 
-    # Altijd tonen
+    # 🔒 Alleen-lezen
     st.subheader("🔒 Reeds gelogde rijen (alleen-lezen)")
     st.dataframe(al_gelogd[zichtbaar], use_container_width=True)
-
 
 #--
