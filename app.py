@@ -105,33 +105,49 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
 
     st.subheader("✅ Pas 'Extra meegegeven' direct aan")
 
+    # Bepaal per rij of 'Extra meegegeven' bewerkbaar moet zijn
+    disabled_mask = pd.DataFrame(False, index=df_display[zichtbaar].index, columns=zichtbaar)
+    for index in disabled_mask.index:
+        if df_display.at[index, "Extra meegegeven"] == True:
+            disabled_mask.at[index, "Extra meegegeven"] = True
+
     editable_df = st.data_editor(
         df_display[zichtbaar],
         use_container_width=True,
         num_rows="dynamic",
         key="editor",
-        disabled=[col for col in zichtbaar if col != "Extra meegegeven"]
+        disabled=disabled_mask
     )
 
     # Wijzigingen detecteren
-    gewijzigd = editable_df != df_display[zichtbaar]
-    gewijzigde_rijen = gewijzigd.any(axis=1)
+    st.subheader("💾 Sla wijzigingen op")
+    if st.button("✅ Wijzigingen toepassen en loggen"):
+        gewijzigd = editable_df != df_display[zichtbaar]
+        gewijzigde_rijen = gewijzigd.any(axis=1)
 
-    for index in editable_df[gewijzigde_rijen].index:
-        nieuwe_waarde = editable_df.at[index, "Extra meegegeven"]
-        oude_waarde = st.session_state['df1_filtered'].at[index, "Extra meegegeven"]
+        wijzigingen_geteld = 0
 
-        if nieuwe_waarde != oude_waarde:
-            st.session_state['df1_filtered'].at[index, "Extra meegegeven"] = nieuwe_waarde
+        for index in editable_df[gewijzigde_rijen].index:
+            nieuwe_waarde = editable_df.at[index, "Extra meegegeven"]
+            oude_waarde = st.session_state['df1_filtered'].at[index, "Extra meegegeven"]
 
-            log_entry = {
-                'Location code': editable_df.at[index, 'Location code'],
-                'Content type': editable_df.at[index, 'Content type'],
-                'Fill level (%)': editable_df.at[index, 'Fill level (%)'],
-                'Datum': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            }
+            if nieuwe_waarde != oude_waarde:
+                st.session_state['df1_filtered'].at[index, "Extra meegegeven"] = nieuwe_waarde
 
-            voeg_toe_aan_logboek(log_entry)
+                log_entry = {
+                    'Location code': editable_df.at[index, 'Location code'],
+                    'Content type': editable_df.at[index, 'Content type'],
+                    'Fill level (%)': editable_df.at[index, 'Fill level (%)'],
+                    'Datum': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+
+                voeg_toe_aan_logboek(log_entry)
+                wijzigingen_geteld += 1
+
+        # Sla dataset op
+        st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
+
+        st.success(f"✔️ {wijzigingen_geteld} wijziging(en) opgeslagen en gelogd.")
 
     # Opslaan centrale dataset
     st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
