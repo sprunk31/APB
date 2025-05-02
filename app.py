@@ -5,6 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
+from streamlit.runtime.scriptrunner import RerunException, get_script_run_ctx
 
 # 📁 Google Sheets via secrets
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -157,7 +158,7 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
 
         st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
         st.success(f"✔️ {wijzigingen_geteld} wijziging(en) opgeslagen en gelogd.")
-        st.experimental_rerun()
+        raise RerunException(get_script_run_ctx())
 
     st.subheader("🔒 Reeds gelogde rijen")
     reeds_gelogd = df_display[df_display["Extra meegegeven"] == True]
