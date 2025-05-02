@@ -89,7 +89,6 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     if content_filter != "Alles":
         df_display = df_display[df_display['Content type'] == content_filter]
 
-    # Kolommen uitsluiten
     # Alleen geselecteerde kolommen tonen
     zichtbaar = [
         "Container name",
@@ -103,16 +102,6 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         "OpRoute",
         "Extra meegegeven"
     ]
-
-    st.subheader("✅ Pas 'Extra meegegeven' direct aan")
-
-    editable_df = st.data_editor(
-        df_display[zichtbaar],
-        use_container_width=True,
-        num_rows="dynamic",
-        key="editor",
-        disabled=[col for col in zichtbaar if col != "Extra meegegeven"]
-    )
 
     st.subheader("✅ Pas 'Extra meegegeven' direct aan")
 
