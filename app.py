@@ -27,7 +27,9 @@ def voeg_toe_aan_logboek(data_dict):
             data_dict["Datum"]
         ])
     except Exception as e:
-        st.error(f"⚠️ Fout bij loggen naar Google Sheets: {e}")
+        import traceback
+        st.error("⚠️ Fout bij loggen naar Google Sheets:")
+        st.exception(e)
 
 # 📁 Bestandslocatie dataset
 DATA_PATH = "huidige_dataset.csv"
