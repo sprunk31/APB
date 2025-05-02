@@ -95,6 +95,8 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     if oproute_filter != "Alles":
         df_display = df_display[df_display['OpRoute'] == oproute_filter]
 
+
+
     zichtbaar = [
         "Container name",
         "Address",
@@ -107,6 +109,14 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         "OpRoute",
         "Extra meegegeven"
     ]
+
+    sorteer_op = st.selectbox("📊 Sorteer op kolom", zichtbaar)
+    sorteervolgorde = st.radio("↕️ Sorteervolgorde", ["Oplopend", "Aflopend"])
+
+    df_display = df_display.sort_values(
+        by=sorteer_op,
+        ascending=(sorteervolgorde == "Oplopend")
+    )
 
     # Verdeel in bewerkbaar en gelogd
     nog_bewerkbaar = df_display[df_display["Extra meegegeven"] == False]
