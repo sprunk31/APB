@@ -24,7 +24,6 @@ def voeg_toe_aan_logboek(data_dict):
             data_dict["Location code"],
             data_dict["Content type"],
             data_dict["Fill level (%)"],
-            data_dict["Extra meegegeven"],
             data_dict["Datum"]
         ])
     except Exception as e:
@@ -129,7 +128,6 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
                 'Location code': editable_df.at[index, 'Location code'],
                 'Content type': editable_df.at[index, 'Content type'],
                 'Fill level (%)': editable_df.at[index, 'Fill level (%)'],
-                'Extra meegegeven': editable_df.at[index, 'Extra meegegeven'],
                 'Datum': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
 
