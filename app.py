@@ -20,6 +20,9 @@ def voeg_toe_aan_logboek(data_dict):
         client = gspread.authorize(CREDENTIALS)
         sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
         sheet.append_row([
+            data_dict["Container name"],
+            data_dict["Address"],
+            data_dict["City"],
             data_dict["Location code"],
             data_dict["Content type"],
             data_dict["Fill level (%)"],
@@ -28,6 +31,7 @@ def voeg_toe_aan_logboek(data_dict):
     except Exception as e:
         st.error("⚠️ Fout bij loggen naar Google Sheets:")
         st.exception(e)
+
 
 # 📁 Dataset pad
 DATA_PATH = "huidige_dataset.csv"
@@ -130,10 +134,13 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
                 st.session_state['df1_filtered'].at[index, "Extra meegegeven"] = nieuwe_waarde
 
                 log_entry = {
-                    'Location code': editable_df.at[index, 'Location code'],
-                    'Content type': editable_df.at[index, 'Content type'],
-                    'Fill level (%)': editable_df.at[index, 'Fill level (%)'],
-                    'Datum': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    "Container name": editable_df.at[index, "Container name"],
+                    "Address": editable_df.at[index, "Address"],
+                    "City": editable_df.at[index, "City"],
+                    "Location code": editable_df.at[index, "Location code"],
+                    "Content type": editable_df.at[index, "Content type"],
+                    "Fill level (%)": editable_df.at[index, "Fill level (%)"],
+                    "Datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
 
                 voeg_toe_aan_logboek(log_entry)
