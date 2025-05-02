@@ -4,7 +4,6 @@ import os
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 # 📁 Google Sheets via secrets
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -14,7 +13,7 @@ CREDENTIALS = Credentials.from_service_account_info(
     scopes=SCOPE
 )
 
-SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"
+SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"  # <-- Vervang met jouw Google Sheet ID
 SHEET_NAME = "Logboek Afvalcontainers"
 
 def voeg_toe_aan_logboek(data_dict):
@@ -75,9 +74,21 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     st.header("📋 Containeroverzicht")
 
     df = st.session_state['df1_filtered']
-    df_display = df.copy()
 
-    # Kolommen die getoond worden
+    # Filters
+    col1, col2 = st.columns(2)
+    with col1:
+        loc_filter = st.selectbox("🔍 Filter op Location code", ["Alles"] + sorted(df['Location code'].unique()))
+    with col2:
+        content_filter = st.selectbox("🔍 Filter op Content type", ["Alles"] + sorted(df['Content type'].unique()))
+
+    df_display = df.copy()
+    if loc_filter != "Alles":
+        df_display = df_display[df_display['Location code'] == loc_filter]
+    if content_filter != "Alles":
+        df_display = df_display[df_display['Content type'] == content_filter]
+
+    # Kolommen om te tonen
     zichtbaar = [
         "Container name",
         "Address",
@@ -91,7 +102,7 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         "Extra meegegeven"
     ]
 
-    # Verdeel in bewerkbare en reeds gelogde rijen
+    # Verdeel in bewerkbaar en alleen-lezen
     nog_bewerkbaar = df_display[df_display["Extra meegegeven"] == False]
     al_gelogd = df_display[df_display["Extra meegegeven"] == True]
 
@@ -102,13 +113,9 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         use_container_width=True,
         num_rows="dynamic",
         key="editor",
-        disabled=[col for col in zichtbaar if col != "Extra meegegeven"],
-        hide_index=True,
-        filters=True,
-        column_order=zichtbaar
+        disabled=[col for col in zichtbaar if col != "Extra meegegeven"]
     )
 
-    # Opslaan en loggen
     st.subheader("💾 Sla wijzigingen op")
     if st.button("✅ Wijzigingen toepassen en loggen"):
         gewijzigd = editable_df != nog_bewerkbaar[zichtbaar]
@@ -127,7 +134,7 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
                     'Location code': editable_df.at[index, 'Location code'],
                     'Content type': editable_df.at[index, 'Content type'],
                     'Fill level (%)': editable_df.at[index, 'Fill level (%)'],
-                    'Datum': datetime.now(ZoneInfo("Europe/Amsterdam")).strftime("%Y-%m-%d %H:%M:%S")
+                    'Datum': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                 }
 
                 voeg_toe_aan_logboek(log_entry)
@@ -140,6 +147,5 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     # Alleen-lezen: reeds gelogde rijen
     st.subheader("🔒 Reeds gelogde rijen (alleen-lezen)")
     st.dataframe(al_gelogd[zichtbaar], use_container_width=True)
-
 
 #--
