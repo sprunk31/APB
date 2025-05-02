@@ -4,17 +4,16 @@ import os
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-import pytz
+from zoneinfo import ZoneInfo
 
-# Tijdzone instellen
-amsterdam = pytz.timezone("Europe/Amsterdam")
-
-# Google Sheets via secrets
+# 📁 Google Sheets via secrets
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+
 CREDENTIALS = Credentials.from_service_account_info(
     st.secrets["gcp_service_account"],
     scopes=SCOPE
 )
+
 SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"
 SHEET_NAME = "Logboek Afvalcontainers"
 
@@ -23,30 +22,29 @@ def voeg_toe_aan_logboek(data_dict):
         client = gspread.authorize(CREDENTIALS)
         sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
         sheet.append_row([
-            data_dict["Locatiecode"],
-            data_dict["Inhoudstype"],
-            data_dict["Vulgraad"],
-            data_dict["Actie"],
+            data_dict["Location code"],
+            data_dict["Content type"],
+            data_dict["Fill level (%)"],
             data_dict["Datum"]
         ])
     except Exception as e:
         st.error("⚠️ Fout bij loggen naar Google Sheets:")
         st.exception(e)
 
-# Dataset pad
+# 📁 Bestandslocatie dataset
 DATA_PATH = "huidige_dataset.csv"
 
-# Laad eerdere dataset
+# Laad eerder opgeslagen dataset
 if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
     st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
 
-# UI
+# Pagina setup
 st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
 st.title("♻️ Afvalcontainerbeheer Dashboard")
 
 rol = st.selectbox("👤 Kies je rol", ["Gebruiker", "Admin"])
 
-# -------------------------- ADMIN --------------------------
+# -------------------------- ADMIN UPLOAD --------------------------
 if rol == "Admin":
     st.header("📤 Upload Excel-bestanden")
 
@@ -67,49 +65,56 @@ if rol == "Admin":
         df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(['Location code', 'Content type'])['Fill level (%)'].transform('mean')
         df1_filtered['OpRoute'] = df1_filtered['Container name'].isin(df2['Omschrijving'].values).map({True: 'Ja', False: 'Nee'})
         df1_filtered['Extra meegegeven'] = False
-        df1_filtered['Verwijderen'] = False
 
         st.session_state['df1_filtered'] = df1_filtered
         df1_filtered.to_csv(DATA_PATH, index=False)
-        st.success("✅ Gegevens verwerkt en gedeeld.")
+        st.success("✅ Gegevens succesvol verwerkt en gedeeld met gebruikers.")
 
-# -------------------------- GEBRUIKER --------------------------
+# -------------------------- GEBRUIKER DEEL --------------------------
 if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
+    st.header("📋 Containeroverzicht")
+
     df = st.session_state['df1_filtered']
+    df_display = df.copy()
+
+    # Kolommen die getoond worden
     zichtbaar = [
-        "Container name", "Address", "City", "Location code", "Content type",
-        "Fill level (%)", "CombinatieTelling", "GemiddeldeVulgraad",
-        "OpRoute", "Extra meegegeven", "Verwijderen"
+        "Container name",
+        "Address",
+        "City",
+        "Location code",
+        "Content type",
+        "Fill level (%)",
+        "CombinatieTelling",
+        "GemiddeldeVulgraad",
+        "OpRoute",
+        "Extra meegegeven"
     ]
 
-    # Splits op basis van status
-    nog_bewerkbaar = df[df["Extra meegegeven"] == False]
-    al_gelogd = df[df["Extra meegegeven"] == True]
+    # Verdeel in bewerkbare en reeds gelogde rijen
+    nog_bewerkbaar = df_display[df_display["Extra meegegeven"] == False]
+    al_gelogd = df_display[df_display["Extra meegegeven"] == True]
 
-    # Bewerken
+    # Bewerken van nog niet gelogde rijen
     st.subheader("✏️ Bewerkbare rijen")
     editable_df = st.data_editor(
         nog_bewerkbaar[zichtbaar],
         use_container_width=True,
         num_rows="dynamic",
         key="editor",
-        column_config={
-            "Location code": st.column_config.TextColumn("Location code", filter=True),
-            "Content type": st.column_config.TextColumn("Content type", filter=True),
-            "Fill level (%)": st.column_config.NumberColumn("Fill level (%)", filter=True),
-        },
-        disabled=[col for col in zichtbaar if col not in ["Extra meegegeven", "Verwijderen"]]
+        disabled=[col for col in zichtbaar if col != "Extra meegegeven"],
+        hide_index=True,
+        filters=True,
+        column_order=zichtbaar
     )
 
-    # Opslaan
+    # Opslaan en loggen
     st.subheader("💾 Sla wijzigingen op")
     if st.button("✅ Wijzigingen toepassen en loggen"):
         gewijzigd = editable_df != nog_bewerkbaar[zichtbaar]
         gewijzigde_rijen = gewijzigd.any(axis=1)
-        verwijderde_rijen = editable_df[editable_df["Verwijderen"] == True]
 
         wijzigingen_geteld = 0
-        verwijderingen_geteld = 0
 
         for index in editable_df[gewijzigde_rijen].index:
             nieuwe_waarde = editable_df.at[index, "Extra meegegeven"]
@@ -119,34 +124,22 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
                 st.session_state['df1_filtered'].at[index, "Extra meegegeven"] = nieuwe_waarde
 
                 log_entry = {
-                    "Locatiecode": editable_df.at[index, 'Location code'],
-                    "Inhoudstype": editable_df.at[index, 'Content type'],
-                    "Vulgraad": editable_df.at[index, 'Fill level (%)'],
-                    "Actie": "Extra meegegeven aangevinkt",
-                    "Datum": datetime.now(amsterdam).strftime("%Y-%m-%d %H:%M:%S")
+                    'Location code': editable_df.at[index, 'Location code'],
+                    'Content type': editable_df.at[index, 'Content type'],
+                    'Fill level (%)': editable_df.at[index, 'Fill level (%)'],
+                    'Datum': datetime.now(ZoneInfo("Europe/Amsterdam")).strftime("%Y-%m-%d %H:%M:%S")
                 }
+
                 voeg_toe_aan_logboek(log_entry)
                 wijzigingen_geteld += 1
 
-        # Verwijderen
-        for index in verwijderde_rijen.index:
-            st.session_state['df1_filtered'].drop(index, inplace=True)
-            log_entry = {
-                "Locatiecode": verwijderde_rijen.at[index, 'Location code'],
-                "Inhoudstype": verwijderde_rijen.at[index, 'Content type'],
-                "Vulgraad": verwijderde_rijen.at[index, 'Fill level (%)'],
-                "Actie": "Record verwijderd",
-                "Datum": datetime.now(amsterdam).strftime("%Y-%m-%d %H:%M:%S")
-            }
-            voeg_toe_aan_logboek(log_entry)
-            verwijderingen_geteld += 1
-
+        # Sla bij
         st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
-        st.success(f"✔️ {wijzigingen_geteld} wijziging(en) en {verwijderingen_geteld} verwijdering(en) verwerkt.")
+        st.success(f"✔️ {wijzigingen_geteld} wijziging(en) opgeslagen en gelogd.")
 
-    # Alleen-lezen
-    st.subheader("🔒 Reeds gelogde rijen")
-    st.dataframe(al_gelogd[zichtbaar[:-1]], use_container_width=True)
+    # Alleen-lezen: reeds gelogde rijen
+    st.subheader("🔒 Reeds gelogde rijen (alleen-lezen)")
+    st.dataframe(al_gelogd[zichtbaar], use_container_width=True)
 
 
 #--
