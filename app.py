@@ -145,7 +145,33 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         st.success(f"✔️ {wijzigingen_geteld} wijziging(en) opgeslagen en gelogd.")
 
     # Alleen-lezen: reeds gelogde rijen
+    # Alleen-lezen: reeds gelogde rijen (NA updates opnieuw bepalen)
+    if wijzigingen_geteld > 0:
+        # Herbereken de subsets na update
+        df = st.session_state['df1_filtered']
+
+        df_display = df.copy()
+        if loc_filter != "Alles":
+            df_display = df_display[df_display['Location code'] == loc_filter]
+        if content_filter != "Alles":
+            df_display = df_display[df_display['Content type'] == content_filter]
+
+        # Nieuwe splitsing
+        nog_bewerkbaar = df_display[df_display["Extra meegegeven"] == False]
+        al_gelogd = df_display[df_display["Extra meegegeven"] == True]
+
+        st.subheader("✏️ Bewerkbare rijen (ververs na update)")
+        editable_df = st.data_editor(
+            nog_bewerkbaar[zichtbaar],
+            use_container_width=True,
+            num_rows="dynamic",
+            key="editor_nieuw",  # nieuwe key om state te resetten
+            disabled=[col for col in zichtbaar if col != "Extra meegegeven"]
+        )
+
+    # Altijd tonen
     st.subheader("🔒 Reeds gelogde rijen (alleen-lezen)")
     st.dataframe(al_gelogd[zichtbaar], use_container_width=True)
+
 
 #--
