@@ -13,7 +13,7 @@ CREDENTIALS = Credentials.from_service_account_info(
     scopes=SCOPE
 )
 
-SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"  # <-- Vervang met jouw Google Sheet ID
+SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"
 SHEET_NAME = "Logboek Afvalcontainers"
 
 def voeg_toe_aan_logboek(data_dict):
@@ -140,12 +140,48 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
                 voeg_toe_aan_logboek(log_entry)
                 wijzigingen_geteld += 1
 
-        # Sla bij
         st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
         st.success(f"✔️ {wijzigingen_geteld} wijziging(en) opgeslagen en gelogd.")
 
-    # Alleen-lezen: reeds gelogde rijen
-    st.subheader("🔒 Reeds gelogde rijen (alleen-lezen)")
-    st.dataframe(al_gelogd[zichtbaar], use_container_width=True)
+    # 📦 Batch-verplaatsing naar 'Verwerkt'
+    st.subheader("📦 Selecteer gelogde rijen om te verplaatsen naar 'Verwerkt'")
+
+    klaar_voor_verwerking = df_display[
+        (df_display["Extra meegegeven"] == True) &
+        (df_display["OpRoute"] != "Verwerkt")
+    ]
+
+    if not klaar_voor_verwerking.empty:
+        selectable_keys = klaar_voor_verwerking["Location code"] + " - " + klaar_voor_verwerking["Content type"]
+        geselecteerd = st.multiselect(
+            "Sleep (selecteer) rijen naar 'Verwerkt'",
+            options=selectable_keys.tolist()
+        )
+
+        if geselecteerd:
+            verwerkte_rows = klaar_voor_verwerking[
+                (klaar_voor_verwerking["Location code"] + " - " + klaar_voor_verwerking["Content type"]).isin(geselecteerd)
+            ]
+
+            for index, row in verwerkte_rows.iterrows():
+                st.session_state['df1_filtered'].at[index, "OpRoute"] = "Verwerkt"
+
+                log_entry = {
+                    'Location code': row['Location code'],
+                    'Content type': row['Content type'],
+                    'Fill level (%)': row['Fill level (%)'],
+                    'Datum': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                }
+                voeg_toe_aan_logboek(log_entry)
+
+            st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
+            st.success(f"✅ {len(verwerkte_rows)} record(s) gemarkeerd als 'Verwerkt' en gelogd.")
+    else:
+        st.info("✅ Geen records meer klaar voor verwerking.")
+
+    # Alleen-lezen: reeds gelogde/verwerkte rijen
+    st.subheader("🔒 Reeds gelogde/verwerkte rijen")
+    readonly = df_display[df_display["OpRoute"] == "Verwerkt"]
+    st.dataframe(readonly[zichtbaar], use_container_width=True)
 
 #--
