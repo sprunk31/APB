@@ -90,8 +90,29 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df_display = df_display[df_display['Content type'] == content_filter]
 
     # Kolommen uitsluiten
-    uitsluiten = ['Device Location', 'External group ID']
-    zichtbaar = [col for col in df_display.columns if col not in uitsluiten]
+    # Alleen geselecteerde kolommen tonen
+    zichtbaar = [
+        "Container name",
+        "Address",
+        "City",
+        "Location code",
+        "Content type",
+        "Fill level (%)",
+        "CombinatieTelling",
+        "GemiddeldeVulgraad",
+        "OpRoute",
+        "Extra meegegeven"
+    ]
+
+    st.subheader("✅ Pas 'Extra meegegeven' direct aan")
+
+    editable_df = st.data_editor(
+        df_display[zichtbaar],
+        use_container_width=True,
+        num_rows="dynamic",
+        key="editor",
+        disabled=[col for col in zichtbaar if col != "Extra meegegeven"]
+    )
 
     st.subheader("✅ Pas 'Extra meegegeven' direct aan")
 
