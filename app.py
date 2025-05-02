@@ -105,12 +105,19 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
 
     st.subheader("✅ Pas 'Extra meegegeven' direct aan")
 
+    # Kolommen definiëren
+    disabled_matrix = {
+        "Extra meegegeven": [
+            waarde is True for waarde in df_display["Extra meegegeven"]
+        ]
+    }
+
     editable_df = st.data_editor(
         df_display[zichtbaar],
         use_container_width=True,
         num_rows="dynamic",
         key="editor",
-        disabled=[col for col in zichtbaar if col != "Extra meegegeven"]
+        disabled=disabled_matrix
     )
 
     # Wijzigingen detecteren
