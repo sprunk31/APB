@@ -4,7 +4,6 @@ import os
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-from streamlit.runtime.scriptrunner import RerunException, get_script_run_ctx
 
 # 📁 Google Sheets via secrets
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -148,12 +147,10 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
 
         st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
 
-        # 🔁 Refresh app na logging
-        st.toast(f"✔️ {wijzigingen_geteld} wijziging(en) verwerkt. Pagina ververst…")
-        raise RerunException(get_script_run_ctx())
+        # 🔁 Ververs app
+        st.toast(f"✔️ {wijzigingen_geteld} wijziging(en) verwerkt. Pagina wordt vernieuwd…")
+        st.experimental_rerun()
 
     # 🔒 Alleen-lezen
     st.subheader("🔒 Reeds gelogde rijen (alleen-lezen)")
     st.dataframe(al_gelogd[zichtbaar], use_container_width=True)
-
-#--
