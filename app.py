@@ -105,27 +105,12 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
 
     st.subheader("✅ Pas 'Extra meegegeven' direct aan")
 
-    # Bepaal per rij of 'Extra meegegeven' bewerkbaar moet zijn
-    disabled_mask = pd.DataFrame(False, index=df_display[zichtbaar].index, columns=zichtbaar)
-    for index in disabled_mask.index:
-        loc_code = df_display.at[index, "Location code"]
-        content_type = df_display.at[index, "Content type"]
-
-        # Zoek originele index in centrale dataset
-        match = st.session_state['df1_filtered'][
-            (st.session_state['df1_filtered']['Location code'] == loc_code) &
-            (st.session_state['df1_filtered']['Content type'] == content_type)
-            ]
-
-        if not match.empty and match.iloc[0]["Extra meegegeven"] == True:
-            disabled_mask.at[index, "Extra meegegeven"] = True
-
     editable_df = st.data_editor(
         df_display[zichtbaar],
         use_container_width=True,
         num_rows="dynamic",
         key="editor",
-        disabled=disabled_mask
+        disabled=[col for col in zichtbaar if col != "Extra meegegeven"]
     )
 
     # Wijzigingen detecteren
