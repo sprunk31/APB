@@ -118,16 +118,16 @@ if rol == "Gebruiker" and 'df1_filtered' in st.session_state:
     gewijzigde_rijen = gewijzigd.any(axis=1)
 
     for index in editable_df[gewijzigde_rijen].index:
-        oude_waarde = df_display.at[index, "Extra meegegeven"]
         nieuwe_waarde = editable_df.at[index, "Extra meegegeven"]
+        oude_waarde = st.session_state['df1_filtered'].at[index, "Extra meegegeven"]
 
-        if oude_waarde != nieuwe_waarde:
+        if nieuwe_waarde != oude_waarde:
             st.session_state['df1_filtered'].at[index, "Extra meegegeven"] = nieuwe_waarde
 
             log_entry = {
-                'Location code': df_display.at[index, 'Location code'],
-                'Content type': df_display.at[index, 'Content type'],
-                'Fill level (%)': df_display.at[index, 'Fill level (%)'],
+                'Location code': editable_df.at[index, 'Location code'],
+                'Content type': editable_df.at[index, 'Content type'],
+                'Fill level (%)': editable_df.at[index, 'Fill level (%)'],
                 'Datum': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
 
