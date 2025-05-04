@@ -72,6 +72,7 @@ with tab1:
         if file1 and file2:
             df1 = pd.read_excel(file1)
             df2 = pd.read_excel(file2)
+            st.session_state['file2'] = df2  # Voeg toe om file2 in session_state op te slaan
 
             df1_filtered = df1[
                 (df1['Operational state'] == 'In use') &
