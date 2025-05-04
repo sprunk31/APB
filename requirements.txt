@@ -4,3 +4,6 @@ openpyxl
 gspread
 oauth2client
 streamlit-aggrid
+geopy
+folium
+streamlit-folium
