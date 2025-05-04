@@ -5,7 +5,6 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
-
 import folium
 from folium.plugins import HeatMap
 from streamlit_folium import st_folium
@@ -111,10 +110,10 @@ if tabs == "Dashboard":
         selected_type = st.session_state.get("active_content_type", content_types[0])
         df_display = df[df["Content type"] == selected_type]
 
-        op_route_ja = st.toggle("Toon alleen containers **op route**", value=True)
+        op_route_ja = st.toggle("Toon alleen containers **op route**", value=False)
         df_display = df_display[df_display["OpRoute"] == ("Ja" if op_route_ja else "Nee")]
 
-        df_display = df_display.sort_values(by="Fill level (%)", ascending=False)
+        df_display = df_display.sort_values(by="GemiddeldeVulgraad", ascending=False)
 
         zichtbaar = [
             "Container name",
