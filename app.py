@@ -89,7 +89,7 @@ if tabs == "📊 Dashboard":
 
             # Filterblok
             st.markdown("### 🔍 Filters")
-            filter_col1, filter_col2 = st.columns([2, 6])
+            filter_col1, filter_col2 = st.columns([2, 8])
             with filter_col1:
                 content_types = sorted(df["Content type"].unique())
                 selected_type = st.selectbox("Content type:", content_types, index=0, label_visibility="visible")
@@ -144,13 +144,15 @@ elif tabs == "🗺️ Kaartweergave" and 'df1_filtered' in st.session_state:
     content_types = sorted(df_map["Content type"].unique())
     col1, col2 = st.columns([1, 1])
     with col1:
-        selected_type = st.selectbox("Fractie:", content_types, index=0)
+        with st.columns([2, 8])[0]:
+            selected_type = st.selectbox("Fractie:", content_types, index=0)
     df_filtered = df_map[df_map["Content type"] == selected_type]
 
     st.subheader("2️⃣ Kies container")
     df_filtered["container_selectie"] = df_filtered["Container name"] + " (" + df_filtered["Fill level (%)"].astype(str) + "%)"
     container_names = df_filtered["container_selectie"].tolist()
-    selected_container_name = st.selectbox("Container (met vulgraad):", container_names)
+    with st.columns([3, 7])[0]:
+        selected_container_name = st.selectbox("Container (met vulgraad):", container_names)
     selected_container = selected_container_name.split(" (")[0]
 
     center_row = df_filtered[df_filtered["Container name"] == selected_container].iloc[0]
