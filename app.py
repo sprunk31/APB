@@ -95,26 +95,11 @@ with tab1:
     elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df = st.session_state['df1_filtered']
 
-        # 🎯 KPI's uitgebreid
-        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
-
-        # KPI 1: totaal aantal containers
+        # 🎯 KPI's
+        kpi1, kpi2, kpi3 = st.columns(3)
         kpi1.metric("📦 Containers", len(df))
-
-        # KPI 2: gemiddelde vulgraad bij containers NIET op route per content type
-        gem_niet_op_route = df[df["OpRoute"] == "Nee"].groupby("Content type")["Fill level (%)"].mean().round(1)
-        tekst_niet_op_route = "\n".join([f"{ct}: {v}%" for ct, v in gem_niet_op_route.items()])
-        kpi2.markdown("**📊 Gem. vulgraad (niet op route)**")
-        kpi2.markdown(f"<pre style='font-size: 13px'>{tekst_niet_op_route}</pre>", unsafe_allow_html=True)
-
-        # KPI 3: totaal aantal containers op route
-        kpi3.metric("🚚 Op route", df["OpRoute"].value_counts().get("Ja", 0))
-
-        # KPI 4: gemiddelde vulgraad bij containers OP route per content type
-        gem_op_route = df[df["OpRoute"] == "Ja"].groupby("Content type")["Fill level (%)"].mean().round(1)
-        tekst_op_route = "\n".join([f"{ct}: {v}%" for ct, v in gem_op_route.items()])
-        kpi4.markdown("**📊 Gem. vulgraad (op route)**")
-        kpi4.markdown(f"<pre style='font-size: 13px'>{tekst_op_route}</pre>", unsafe_allow_html=True)
+        kpi2.metric("📊 Gem. vulgraad", f"{df['Fill level (%)'].mean():.1f}%")
+        kpi3.metric("🚚 Op route", df['OpRoute'].value_counts().get('Ja', 0))
 
         # 🔍 Filters
         with st.expander("🔎 Filters", expanded=True):
