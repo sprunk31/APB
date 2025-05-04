@@ -73,6 +73,10 @@ if tabs == "Dashboard":
                 (df1['On hold'] == 'No')
             ].copy()
 
+            st.session_state['df1_filtered']["Content type"] = st.session_state['df1_filtered']["Content type"].apply(
+                lambda x: "Glas" if "glass" in str(x).lower() else x
+            )
+
             df1_filtered['CombinatieTelling'] = df1_filtered.groupby(['Location code', 'Content type'])['Content type'].transform('count')
             df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(['Location code', 'Content type'])['Fill level (%)'].transform('mean')
             df1_filtered['OpRoute'] = df1_filtered['Container name'].isin(df2['Omschrijving'].values).map({True: 'Ja', False: 'Nee'})
