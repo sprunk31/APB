@@ -111,7 +111,7 @@ if tabs == "Dashboard":
         df_display = df[df["Content type"] == selected_type]
 
         op_route_ja = st.toggle("Toon alleen containers **op route**", value=False)
-        df_display = df_display[df_display["OpRoute"] == ("Nee" if op_route_ja else "Ja")]
+        df_display = df_display[df_display["OpRoute"] == ("Ja" if op_route_ja else "Nee")]
 
         df_display = df_display.sort_values(by="GemiddeldeVulgraad", ascending=False)
 
