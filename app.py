@@ -204,7 +204,8 @@ elif tabs == "Kaart" and 'df1_filtered' in st.session_state:
 
     st.subheader("3️⃣ Kaartweergave")
     m = folium.Map(location=center_coord, zoom_start=16)
-    HeatMap(df_nabij[["lat", "lon"]].values.tolist()).add_to(m)
+    heat_data = [[row["lat"], row["lon"], row["Fill level (%)"]] for _, row in df_nabij.iterrows()]
+    HeatMap(heat_data, max_val=100, radius=25).add_to(m)
 
     folium.Marker(
         location=center_coord,
