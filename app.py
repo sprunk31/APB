@@ -88,25 +88,12 @@ if tabs == "📊 Dashboard":
 
             # Filterblok
             st.markdown("### 🔍 Filters")
-            col1, col2 = st.columns([3, 1])
-
-            with col1:
+            filter_col1, filter_col2 = st.columns([1, 1])
+            with filter_col1:
                 content_types = sorted(df["Content type"].unique())
-                selected_type = st.selectbox("Content type:", content_types, index=0, label_visibility="visible", key="filter1")
-            with col2:
-                op_route_ja = st.toggle("📍 Alleen op route", value=False, key="filter2")
-
-            # Beperk breedte van filters
-            st.markdown("""
-                <style>
-                    div[data-baseweb="select"] > div {
-                        max-width: 8cm;
-                    }
-                    div[data-testid="stToggle"] > div {
-                        max-width: 8cm;
-                    }
-                </style>
-            """, unsafe_allow_html=True)
+                selected_type = st.selectbox("Content type:", content_types, index=0, label_visibility="visible")
+            with filter_col2:
+                op_route_ja = st.toggle("📍 Alleen op route", value=False)
 
             df_display = df[df["Content type"] == selected_type]
             df_display = df_display[df_display["OpRoute"] == ("Ja" if op_route_ja else "Nee")]
@@ -154,12 +141,16 @@ elif tabs == "🗺️ Kaartweergave" and 'df1_filtered' in st.session_state:
 
     st.subheader("1️⃣ Kies content type")
     content_types = sorted(df_map["Content type"].unique())
-    selected_type = st.selectbox("Fractie", content_types)
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        selected_type = st.selectbox("Fractie:", content_types, index=0)
     df_filtered = df_map[df_map["Content type"] == selected_type]
 
     st.subheader("2️⃣ Kies container")
-    container_names = df_filtered["Container name"].unique()
-    selected_container = st.selectbox("Container", container_names)
+    df_filtered["container_selectie"] = df_filtered["Container name"] + " (" + df_filtered["Fill level (%)"].astype(str) + "%)"
+    container_names = df_filtered["container_selectie"].tolist()
+    selected_container_name = st.selectbox("Container (met vulgraad):", container_names)
+    selected_container = selected_container_name.split(" (")[0]
 
     center_row = df_filtered[df_filtered["Container name"] == selected_container].iloc[0]
     center_coord = (center_row["lat"], center_row["lon"])
@@ -216,4 +207,3 @@ elif tabs == "🗺️ Kaartweergave" and 'df1_filtered' in st.session_state:
     """)
     m.get_root().add_child(legend)
     st_folium(m, width=1000, height=600)
-
