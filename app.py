@@ -240,22 +240,34 @@ with tab3:
             reden = st.text_input("📌 Geef de reden op")
 
         if st.button("✅ Bevestig status"):
-            if gekozen_status == "Actueel":
-                st.success("✅ Actuele status hoeft niet gelogd te worden.")
-            elif reden.strip() == "":
-                st.warning("⚠️ Vul een reden in voordat je logt.")
-            else:
-                # 🔐 Log naar Google Sheet tabblad Logboek route
-                try:
-                    client = gspread.authorize(CREDENTIALS)
-                    sheet = client.open_by_key(SHEET_ID).worksheet("Logboek route")
-                    sheet.append_row([
-                        route,
-                        gekozen_status.replace(":", ""),
-                        reden,
-                        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    ])
-                    st.success("📝 Status succesvol gelogd.")
-                except Exception as e:
-                    st.error("❌ Fout bij loggen naar Google Sheets")
-                    st.exception(e)
+            try:
+                client = gspread.authorize(CREDENTIALS)
+                sheet = client.open_by_key(SHEET_ID).worksheet("Logboek route")
+                records = sheet.get_all_records()
+
+                if gekozen_status == "Actueel":
+                    # Zoek het laatst gelogde record van deze route met afwijking
+                    for i in reversed(range(len(records))):
+                        record = records[i]
+                        if record["Route"] == route and record["Status"] in [
+                            "Gedeeltelijk niet gereden door", "Volledig niet gereden door"
+                        ]:
+                            sheet.delete_rows(i + 2)  # +2 omdat header op rij 1 staat
+                            st.success(f"✅ Vorige afwijking van '{route}' is verwijderd uit het logboek.")
+                            break
+                    else:
+                        st.info("ℹ️ Geen afwijking gevonden voor deze route om te verwijderen.")
+                else:
+                    if reden.strip() == "":
+                        st.warning("⚠️ Vul een reden in voordat je logt.")
+                    else:
+                        sheet.append_row([
+                            route,
+                            gekozen_status.replace(":", ""),
+                            reden,
+                            datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                        ])
+                        st.success("📝 Nieuwe afwijking succesvol gelogd.")
+            except Exception as e:
+                st.error("❌ Fout bij communiceren met Google Sheets.")
+                st.exception(e)
