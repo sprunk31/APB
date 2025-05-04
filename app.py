@@ -92,9 +92,21 @@ if tabs == "📊 Dashboard":
 
             with col1:
                 content_types = sorted(df["Content type"].unique())
-                selected_type = st.selectbox("Content type:", content_types, index=0)
+                selected_type = st.selectbox("Content type:", content_types, index=0, label_visibility="visible", key="filter1")
             with col2:
-                op_route_ja = st.toggle("📍 Alleen op route", value=False)
+                op_route_ja = st.toggle("📍 Alleen op route", value=False, key="filter2")
+
+            # Beperk breedte van filters
+            st.markdown("""
+                <style>
+                    div[data-baseweb="select"] > div {
+                        max-width: 8cm;
+                    }
+                    div[data-testid="stToggle"] > div {
+                        max-width: 8cm;
+                    }
+                </style>
+            """, unsafe_allow_html=True)
 
             df_display = df[df["Content type"] == selected_type]
             df_display = df_display[df_display["OpRoute"] == ("Ja" if op_route_ja else "Nee")]
@@ -204,3 +216,4 @@ elif tabs == "🗺️ Kaartweergave" and 'df1_filtered' in st.session_state:
     """)
     m.get_root().add_child(legend)
     st_folium(m, width=1000, height=600)
+
