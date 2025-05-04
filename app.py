@@ -56,7 +56,7 @@ if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
     st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
 
 # 🔀 Navigatie
-tab1, tab2 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave"])
+tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Route-status"])
 
 # -------------------- DASHBOARD --------------------
 with tab1:
@@ -219,3 +219,42 @@ with tab2:
         """)
         m.get_root().add_child(legend)
         st_folium(m, width=1000, height=600)
+
+# -------------------- ROUTE STATUS --------------------
+with tab3:
+    if 'file2' not in st.session_state:
+        st.warning("❗ Upload eerst 'Bestand van Pieterbas' via tabblad Dashboard.")
+    else:
+        df_routes = st.session_state['file2']
+        unieke_routes = sorted(df_routes["Route Omschrijving"].dropna().unique())
+
+        st.markdown("### 🛣️ Route status doorgeven")
+        route = st.selectbox("Kies een route", unieke_routes)
+
+        status_opties = ["Actueel", "Gedeeltelijk niet gereden door:", "Volledig niet gereden door:"]
+        gekozen_status = st.selectbox("Status", status_opties)
+
+        reden = ""
+        if "niet gereden" in gekozen_status:
+            reden = st.text_input("📌 Geef de reden op")
+
+        if st.button("✅ Bevestig status"):
+            if gekozen_status == "Actueel":
+                st.success("✅ Actuele status hoeft niet gelogd te worden.")
+            elif reden.strip() == "":
+                st.warning("⚠️ Vul een reden in voordat je logt.")
+            else:
+                # 🔐 Log naar Google Sheet tabblad Logboek route
+                try:
+                    client = gspread.authorize(CREDENTIALS)
+                    sheet = client.open_by_key(SHEET_ID).worksheet("Logboek route")
+                    sheet.append_row([
+                        route,
+                        gekozen_status.replace(":", ""),
+                        reden,
+                        datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                    ])
+                    st.success("📝 Status succesvol gelogd.")
+                except Exception as e:
+                    st.error("❌ Fout bij loggen naar Google Sheets")
+                    st.exception(e)
