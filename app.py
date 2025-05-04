@@ -1,5 +1,3 @@
-# ✅ Verbeterde versie met professionele UI, KPIs, tabs, styling en compact filters
-
 import streamlit as st
 import pandas as pd
 import os
@@ -13,7 +11,8 @@ from streamlit_folium import st_folium
 import branca
 from geopy.distance import geodesic
 
-# 🎨 Inject custom CSS for compact layout and max width
+# 🎨 Custom styling
+st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
 st.markdown("""
 <style>
 .block-container {
@@ -26,17 +25,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
 st.title("♻️ Afvalcontainerbeheer Dashboard")
 
-# --- Google Sheets authenticatie ---
+# 📁 Google Sheets setup
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 CREDENTIALS = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=SCOPE)
 SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"
 SHEET_NAME = "Logboek Afvalcontainers"
 DATA_PATH = "huidige_dataset.csv"
 
-# --- Logboek toevoegen ---
 def voeg_toe_aan_logboek(data_dict):
     try:
         client = gspread.authorize(CREDENTIALS)
@@ -54,14 +51,14 @@ def voeg_toe_aan_logboek(data_dict):
         st.error("⚠️ Fout bij loggen naar Google Sheets:")
         st.exception(e)
 
-# --- Data laden ---
+# 📥 Data laden
 if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
     st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
 
-# --- Tabs ---
+# 🔀 Navigatie
 tab1, tab2 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave"])
 
-# ---------------------- DASHBOARD ----------------------
+# -------------------- DASHBOARD --------------------
 with tab1:
     col_role = st.columns([2, 8])[0]
     with col_role:
@@ -76,12 +73,21 @@ with tab1:
             df1 = pd.read_excel(file1)
             df2 = pd.read_excel(file2)
 
-            df1_filtered = df1[(df1['Operational state'] == 'In use') & (df1['Status'] == 'In use') & (df1['On hold'] == 'No')].copy()
-            df1_filtered["Content type"] = df1_filtered["Content type"].apply(lambda x: "Glas" if "glass" in str(x).lower() else x)
+            df1_filtered = df1[
+                (df1['Operational state'] == 'In use') &
+                (df1['Status'] == 'In use') &
+                (df1['On hold'] == 'No')
+            ].copy()
+
+            df1_filtered["Content type"] = df1_filtered["Content type"].apply(
+                lambda x: "Glas" if "glass" in str(x).lower() else x
+            )
+
             df1_filtered['CombinatieTelling'] = df1_filtered.groupby(['Location code', 'Content type'])['Content type'].transform('count')
             df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(['Location code', 'Content type'])['Fill level (%)'].transform('mean')
             df1_filtered['OpRoute'] = df1_filtered['Container name'].isin(df2['Omschrijving'].values).map({True: 'Ja', False: 'Nee'})
             df1_filtered['Extra meegegeven'] = False
+
             st.session_state['df1_filtered'] = df1_filtered
             df1_filtered.to_csv(DATA_PATH, index=False)
             st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
@@ -89,24 +95,25 @@ with tab1:
     elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df = st.session_state['df1_filtered']
 
-        # 🎯 KPI Tiles bovenaan
+        # 🎯 KPI's
         kpi1, kpi2, kpi3 = st.columns(3)
-        kpi1.metric("📦 Aantal containers", len(df))
+        kpi1.metric("📦 Containers", len(df))
         kpi2.metric("📊 Gem. vulgraad", f"{df['Fill level (%)'].mean():.1f}%")
         kpi3.metric("🚚 Op route", df['OpRoute'].value_counts().get('Ja', 0))
 
         # 🔍 Filters
         with st.expander("🔎 Filters", expanded=True):
-            filter_col1, filter_col2 = st.columns([2, 2])
+            filter_col1, filter_col2 = st.columns(2)
             with filter_col1:
                 content_types = sorted(df["Content type"].unique())
-                selected_type = st.selectbox("Content type:", content_types, index=0)
+                selected_type = st.selectbox("Content type", content_types)
             with filter_col2:
                 op_route_ja = st.toggle("📍 Alleen op route", value=False)
 
         df_display = df[df["Content type"] == selected_type]
         df_display = df_display[df_display["OpRoute"] == ("Ja" if op_route_ja else "Nee")]
         df_display = df_display.sort_values(by="GemiddeldeVulgraad", ascending=False)
+
         zichtbaar = ["Container name", "Address", "City", "Location code", "Content type", "Fill level (%)", "CombinatieTelling", "GemiddeldeVulgraad", "OpRoute", "Extra meegegeven"]
         bewerkbare_rijen = df_display[df_display["Extra meegegeven"] == False]
 
@@ -114,6 +121,7 @@ with tab1:
         gb = GridOptionsBuilder.from_dataframe(bewerkbare_rijen[zichtbaar])
         gb.configure_default_column(editable=False, sortable=True, filter=True, resizable=True)
         gb.configure_column("Extra meegegeven", editable=True)
+
         grid_response = AgGrid(
             bewerkbare_rijen[zichtbaar],
             gridOptions=gb.build(),
@@ -141,7 +149,7 @@ with tab1:
         reeds_gelogd = df_display[df_display["Extra meegegeven"] == True]
         st.dataframe(reeds_gelogd[zichtbaar], use_container_width=True)
 
-# ---------------------- KAART ----------------------
+# -------------------- KAART --------------------
 with tab2:
     if 'df1_filtered' in st.session_state:
         df_map = st.session_state['df1_filtered'].copy()
@@ -166,6 +174,7 @@ with tab2:
         m = folium.Map(location=center_coord, zoom_start=16)
         df_gemiddeld = df_nabij.groupby(["Container location", "Content type"])["Fill level (%)"].mean().reset_index()
         df_gemiddeld[["lat", "lon"]] = df_gemiddeld["Container location"].str.split(",", expand=True).astype(float)
+
         heat_data = [[row["lat"], row["lon"], row["Fill level (%)"]] for _, row in df_gemiddeld.iterrows()]
         HeatMap(heat_data, radius=15, min_opacity=0.4, max_val=100).add_to(m)
 
