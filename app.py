@@ -176,14 +176,13 @@ elif tabs == "Kaart" and 'df1_filtered' in st.session_state:
     df_map = st.session_state['df1_filtered'].copy()
     df_map[["lat", "lon"]] = df_map["Container location"].str.split(",", expand=True).astype(float)
 
-    st.subheader("1️⃣ Kies een content type")
+    st.subheader("1️⃣ Kies een content type (fractie)")
     content_types = sorted(df_map["Content type"].unique())
     col_ctypes = st.columns(len(content_types))
     selected_type = st.session_state.get("kaart_type", content_types[0])
 
     for i, ct in enumerate(content_types):
         if col_ctypes[i].button(ct):
-            selected_type = ct
             st.session_state["kaart_type"] = ct
             st.rerun()
 
@@ -197,34 +196,72 @@ elif tabs == "Kaart" and 'df1_filtered' in st.session_state:
     center_coord = (center_row["lat"], center_row["lon"])
 
     def binnen_250m(row):
+        from geopy.distance import geodesic
         return geodesic((row["lat"], row["lon"]), center_coord).meters <= 250
 
     df_filtered["binnen_250m"] = df_filtered.apply(binnen_250m, axis=1)
     df_nabij = df_filtered[df_filtered["binnen_250m"] == True]
 
     st.subheader("3️⃣ Kaartweergave")
+    import folium
+    from folium.plugins import HeatMap
+    from streamlit_folium import st_folium
+
     m = folium.Map(location=center_coord, zoom_start=16)
 
-    # Groepeer per GPS en content type → bereken gemiddelde vulgraad
+    # 🔁 Gemiddelde vulgraad per locatie (Container location + fractie)
     df_gemiddeld = (
         df_nabij.groupby(["Container location", "Content type"])
         ["Fill level (%)"].mean()
         .reset_index()
     )
-
-    # Split GPS naar lat/lon
     df_gemiddeld[["lat", "lon"]] = df_gemiddeld["Container location"].str.split(",", expand=True).astype(float)
 
-    # Genereer heatmap-data
     heat_data = [
         [row["lat"], row["lon"], row["Fill level (%)"]] for _, row in df_gemiddeld.iterrows()
     ]
-    HeatMap(heat_data, radius=12, min_opacity=0.4, max_val=100).add_to(m)
+    HeatMap(heat_data, radius=15, min_opacity=0.4, max_val=100).add_to(m)
 
+    for _, row in df_nabij.iterrows():
+        tooltip = (
+            f"📦 {row['Container name']}<br>"
+            f"📍 Locatie: {row['Location code']}<br>"
+            f"📊 Vulgraad: {row['Fill level (%)']}%"
+        )
+        folium.Marker(
+            location=(row["lat"], row["lon"]),
+            icon=folium.Icon(color="blue", icon="info-sign"),
+            tooltip=tooltip
+        ).add_to(m)
+
+    # 🔴 Marker voor geselecteerde container
     folium.Marker(
         location=center_coord,
-        popup=f"{selected_container}",
-        icon=folium.Icon(color="red", icon="info-sign")
+        popup=f"Geselecteerd: {selected_container}",
+        icon=folium.Icon(color="red", icon="star")
     ).add_to(m)
+
+    # 📘 Legenda
+    legend_html = """
+    <div style="
+        position: fixed;
+        bottom: 50px;
+        left: 50px;
+        width: 200px;
+        height: 130px;
+        background-color: white;
+        border:2px solid grey;
+        z-index:9999;
+        font-size:14px;
+        padding: 10px;
+    ">
+    <b>Legenda vulgraad (%)</b><br>
+    <i style="background: #00f; width: 12px; height: 12px; display: inline-block"></i> Laag (0–30%)<br>
+    <i style="background: #0ff; width: 12px; height: 12px; display: inline-block"></i> Matig (30–60%)<br>
+    <i style="background: #ff0; width: 12px; height: 12px; display: inline-block"></i> Hoog (60–90%)<br>
+    <i style="background: #f00; width: 12px; height: 12px; display: inline-block"></i> Kritiek (90–100%)<br>
+    </div>
+    """
+    m.get_root().html.add_child(folium.Element(legend_html))
 
     st_folium(m, width=1000, height=600)
