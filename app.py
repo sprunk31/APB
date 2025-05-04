@@ -5,10 +5,12 @@ import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
 from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
-from geopy.distance import geodesic
+
 import folium
 from folium.plugins import HeatMap
 from streamlit_folium import st_folium
+import branca
+
 
 # 📁 Google Sheets via secrets
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -195,24 +197,21 @@ elif tabs == "Kaart" and 'df1_filtered' in st.session_state:
     center_row = df_filtered[df_filtered["Container name"] == selected_container].iloc[0]
     center_coord = (center_row["lat"], center_row["lon"])
 
+    from geopy.distance import geodesic
     def binnen_250m(row):
-        from geopy.distance import geodesic
         return geodesic((row["lat"], row["lon"]), center_coord).meters <= 250
 
     df_filtered["binnen_250m"] = df_filtered.apply(binnen_250m, axis=1)
     df_nabij = df_filtered[df_filtered["binnen_250m"] == True]
 
     st.subheader("3️⃣ Kaartweergave")
-    import folium
-    from folium.plugins import HeatMap
-    from streamlit_folium import st_folium
 
     m = folium.Map(location=center_coord, zoom_start=16)
 
-    # 🔁 Gemiddelde vulgraad per locatie (Container location + fractie)
+    # Heatmap op gemiddelde per locatie
     df_gemiddeld = (
-        df_nabij.groupby(["Container location", "Content type"])
-        ["Fill level (%)"].mean()
+        df_nabij.groupby(["Container location", "Content type"])["Fill level (%)"]
+        .mean()
         .reset_index()
     )
     df_gemiddeld[["lat", "lon"]] = df_gemiddeld["Container location"].str.split(",", expand=True).astype(float)
@@ -222,46 +221,59 @@ elif tabs == "Kaart" and 'df1_filtered' in st.session_state:
     ]
     HeatMap(heat_data, radius=15, min_opacity=0.4, max_val=100).add_to(m)
 
+    # Tooltip-markers voor individuele containers
     for _, row in df_nabij.iterrows():
-        tooltip = (
-            f"📦 {row['Container name']}<br>"
-            f"📍 Locatie: {row['Location code']}<br>"
-            f"📊 Vulgraad: {row['Fill level (%)']}%"
+        tooltip = folium.Tooltip(
+            f"""
+            📦 <b>{row['Container name']}</b><br>
+            📍 Locatiecode: {row['Location code']}<br>
+            📊 Vulgraad: {row['Fill level (%)']}%
+            """,
+            sticky=True
         )
-        folium.Marker(
+        folium.CircleMarker(
             location=(row["lat"], row["lon"]),
-            icon=folium.Icon(color="blue", icon="info-sign"),
+            radius=5,
+            color="blue",
+            fill=True,
+            fill_color="blue",
+            fill_opacity=0.8,
             tooltip=tooltip
         ).add_to(m)
 
-    # 🔴 Marker voor geselecteerde container
+    # Marker voor geselecteerde container
     folium.Marker(
         location=center_coord,
         popup=f"Geselecteerd: {selected_container}",
         icon=folium.Icon(color="red", icon="star")
     ).add_to(m)
 
-    # 📘 Legenda
-    legend_html = """
+    # Legenda via branca (werkt met st_folium)
+    legend = branca.element.MacroElement()
+    legend._template = branca.element.Template("""
+    {% macro html(this, kwargs) %}
     <div style="
         position: fixed;
         bottom: 50px;
         left: 50px;
-        width: 200px;
-        height: 130px;
+        width: 210px;
+        height: 150px;
         background-color: white;
         border:2px solid grey;
         z-index:9999;
         font-size:14px;
-        padding: 10px;
-    ">
-    <b>Legenda vulgraad (%)</b><br>
-    <i style="background: #00f; width: 12px; height: 12px; display: inline-block"></i> Laag (0–30%)<br>
-    <i style="background: #0ff; width: 12px; height: 12px; display: inline-block"></i> Matig (30–60%)<br>
-    <i style="background: #ff0; width: 12px; height: 12px; display: inline-block"></i> Hoog (60–90%)<br>
-    <i style="background: #f00; width: 12px; height: 12px; display: inline-block"></i> Kritiek (90–100%)<br>
+        padding: 10px;">
+        <b>Legenda vulgraad (%)</b><br>
+        <div style="margin-top:8px;">
+            <span style="background:#0000ff;width:12px;height:12px;display:inline-block;"></span> 0–30%<br>
+            <span style="background:#00ffff;width:12px;height:12px;display:inline-block;"></span> 30–60%<br>
+            <span style="background:#ffff00;width:12px;height:12px;display:inline-block;"></span> 60–90%<br>
+            <span style="background:#ff0000;width:12px;height:12px;display:inline-block;"></span> 90–100%<br>
+        </div>
     </div>
-    """
-    m.get_root().html.add_child(folium.Element(legend_html))
+    {% endmacro %}
+    """)
+    m.get_root().add_child(legend)
 
+    # Toon kaart
     st_folium(m, width=1000, height=600)
