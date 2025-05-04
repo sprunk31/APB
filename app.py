@@ -174,7 +174,7 @@ elif tabs == "Kaart" and 'df1_filtered' in st.session_state:
     st.header("🗺️ Heatmap per locatie en content type")
 
     df_map = st.session_state['df1_filtered'].copy()
-    df_map[["lat", "lon"]] = df_map["gps"].str.split(",", expand=True).astype(float)
+    df_map[["lat", "lon"]] = df_map["Container location"].str.split(",", expand=True).astype(float)
 
     st.subheader("1️⃣ Kies een content type")
     content_types = sorted(df_map["Content type"].unique())
