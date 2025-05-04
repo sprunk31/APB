@@ -56,9 +56,9 @@ tabs = st.radio("", ["📊 Dashboard", "🗺️ Kaartweergave"], horizontal=True
 # ---------------------- DASHBOARD ----------------------
 if tabs == "📊 Dashboard":
     with st.container():
-        rol = st.selectbox("👤 Kies je rol:", ["Gebruiker", "Admin"], label_visibility="collapsed")
+        rol = st.selectbox("👤 Kies je rol:", ["Gebruiker", "Upload"], label_visibility="collapsed")
 
-        if rol == "Admin":
+        if rol == "Upload":
             st.subheader("📤 Upload Excel-bestanden")
             file1 = st.file_uploader("Bestand van Abel", type=["xlsx"])
             file2 = st.file_uploader("Bestand van Pieterbas", type=["xlsx"])
@@ -88,7 +88,7 @@ if tabs == "📊 Dashboard":
 
             # Filterblok
             st.markdown("### 🔍 Filters")
-            filter_col1, filter_col2 = st.columns([1, 1])
+            filter_col1, filter_col2 = st.columns([2, 6])
             with filter_col1:
                 content_types = sorted(df["Content type"].unique())
                 selected_type = st.selectbox("Content type:", content_types, index=0, label_visibility="visible")
