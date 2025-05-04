@@ -207,13 +207,13 @@ elif tabs == "Kaart" and 'df1_filtered' in st.session_state:
 
     # Groepeer per GPS en content type → bereken gemiddelde vulgraad
     df_gemiddeld = (
-        df_nabij.groupby(["gps", "Content type"])
+        df_nabij.groupby(["Container location", "Content type"])
         ["Fill level (%)"].mean()
         .reset_index()
     )
 
     # Split GPS naar lat/lon
-    df_gemiddeld[["lat", "lon"]] = df_gemiddeld["gps"].str.split(",", expand=True).astype(float)
+    df_gemiddeld[["lat", "lon"]] = df_gemiddeld["Container location"].str.split(",", expand=True).astype(float)
 
     # Genereer heatmap-data
     heat_data = [
