@@ -71,19 +71,24 @@ if tabs == "Dashboard":
                 (df1['Operational state'] == 'In use') &
                 (df1['Status'] == 'In use') &
                 (df1['On hold'] == 'No')
-            ].copy()
+                ].copy()
 
-            st.session_state['df1_filtered']["Content type"] = st.session_state['df1_filtered']["Content type"].apply(
+            # ✅ Categorie 'Glas' samenvoegen
+            df1_filtered["Content type"] = df1_filtered["Content type"].apply(
                 lambda x: "Glas" if "glass" in str(x).lower() else x
             )
 
-            df1_filtered['CombinatieTelling'] = df1_filtered.groupby(['Location code', 'Content type'])['Content type'].transform('count')
-            df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(['Location code', 'Content type'])['Fill level (%)'].transform('mean')
-            df1_filtered['OpRoute'] = df1_filtered['Container name'].isin(df2['Omschrijving'].values).map({True: 'Ja', False: 'Nee'})
+            df1_filtered['CombinatieTelling'] = df1_filtered.groupby(['Location code', 'Content type'])[
+                'Content type'].transform('count')
+            df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(['Location code', 'Content type'])[
+                'Fill level (%)'].transform('mean')
+            df1_filtered['OpRoute'] = df1_filtered['Container name'].isin(df2['Omschrijving'].values).map(
+                {True: 'Ja', False: 'Nee'})
             df1_filtered['Extra meegegeven'] = False
 
             st.session_state['df1_filtered'] = df1_filtered
             df1_filtered.to_csv(DATA_PATH, index=False)
+
             st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
 
     elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
