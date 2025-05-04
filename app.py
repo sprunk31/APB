@@ -56,7 +56,8 @@ tabs = st.radio("", ["📊 Dashboard", "🗺️ Kaartweergave"], horizontal=True
 # ---------------------- DASHBOARD ----------------------
 if tabs == "📊 Dashboard":
     with st.container():
-        rol = st.selectbox("👤 Kies je rol:", ["Gebruiker", "Upload"], label_visibility="collapsed")
+        with st.columns([2, 8])[0]:
+            rol = st.selectbox("👤 Kies je rol:", ["Gebruiker", "Upload"], label_visibility="collapsed")
 
         if rol == "Upload":
             st.subheader("📤 Upload Excel-bestanden")
