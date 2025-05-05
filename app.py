@@ -56,7 +56,7 @@ if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
     st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
 
 # 🔀 Navigatie
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Route-status", "📍 Locatie container"])
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "📍 Locatie container", "🗺️ Kaartweergave", "📋 Route-status"])
 
 # -------------------- DASHBOARD --------------------
 with tab1:
