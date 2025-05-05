@@ -56,7 +56,7 @@ if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
     st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
 
 # 🔀 Navigatie
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "📍 Locatie container", "🗺️ Kaartweergave", "📋 Route-status"])
+tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Route-status", "📍 Locatie container"])
 
 # -------------------- DASHBOARD --------------------
 with tab1:
@@ -229,7 +229,7 @@ with tab3:
         st.warning("❗ Upload eerst 'Bestand van Pieterbas' via het dashboard.")
     else:
         df_routes = st.session_state['file2']
-        unieke_routes = sorted(df_routes["Route Omschrivijng"].dropna().unique())
+        unieke_routes = sorted(df_routes["Route Omschrijving"].dropna().unique())
 
         # 👣 Stap 1: Route kiezen
         route = st.selectbox("1️⃣ Kies een route", unieke_routes, index=0)
