@@ -309,9 +309,9 @@ with tab4:
             theme="streamlit"
         )
 
-        selected = grid_response['selected_rows']
-        if selected and len(selected) > 0:
-            container = selected[0]
+        selected_rows = grid_response['selected_rows']  # lijst van geselecteerde rijen
+        if selected_rows:
+            container = selected_rows[0]
             lat, lon = float(container['lat']), float(container['lon'])
             center = (lat, lon)
 
