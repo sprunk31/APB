@@ -310,7 +310,7 @@ with tab4:
         )
 
         selected = grid_response['selected_rows']
-        if selected:
+        if selected and len(selected) > 0:
             container = selected[0]
             lat, lon = float(container['lat']), float(container['lon'])
             center = (lat, lon)
