@@ -4,7 +4,7 @@ import os
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
-from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode, DataReturnMode
+from st_aggrid import AgGrid, GridOptionsBuilder, GridUpdateMode
 import folium
 from folium.plugins import HeatMap
 from streamlit_folium import st_folium
@@ -56,7 +56,7 @@ if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
     st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
 
 # 🔀 Navigatie
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Route-status", "📍 Locatie container"])
+tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Route-status"])
 
 # -------------------- DASHBOARD --------------------
 with tab1:
@@ -229,7 +229,7 @@ with tab3:
         st.warning("❗ Upload eerst 'Bestand van Pieterbas' via het dashboard.")
     else:
         df_routes = st.session_state['file2']
-        unieke_routes = sorted(df_routes["Route Omschrijving"].dropna().unique())
+        unieke_routes = sorted(df_routes["Route Omschrivijng"].dropna().unique())
 
         # 👣 Stap 1: Route kiezen
         route = st.selectbox("1️⃣ Kies een route", unieke_routes, index=0)
@@ -282,66 +282,3 @@ with tab3:
             except Exception as e:
                 st.error("❌ Fout bij communiceren met Google Sheets.")
                 st.exception(e)
-
-# -------------------- LOCATIE CONTAINER --------------------
-with tab4:
-    st.header("📍 Containerlocatie en omgeving")
-
-    if 'df1_filtered' not in st.session_state:
-        st.warning("❗ Upload eerst de containerdata via het dashboard.")
-    else:
-        df = st.session_state['df1_filtered'].copy()
-        df[["lat", "lon"]] = df["Container location"].str.split(",", expand=True).astype(float)
-
-        st.markdown("### 🔎 Selecteer een container")
-
-        gb = GridOptionsBuilder.from_dataframe(df[[
-            "Container name", "Location code", "Content type", "Fill level (%)", "OpRoute"
-        ]])
-        gb.configure_selection(selection_mode="single", use_checkbox=False)
-        gb.configure_pagination(enabled=True, paginationAutoPageSize=False, paginationPageSize=10)
-        grid_response = AgGrid(
-            df,
-            gridOptions=gb.build(),
-            update_mode=GridUpdateMode.SELECTION_CHANGED,
-            data_return_mode=DataReturnMode.FILTERED_AND_SORTED,
-            height=300,
-            theme="streamlit"
-        )
-
-        selected_rows = grid_response['selected_rows']  # lijst van geselecteerde rijen
-        if selected_rows:
-            container = selected_rows[0]
-            lat, lon = float(container['lat']), float(container['lon'])
-            center = (lat, lon)
-
-            df["afstand"] = df.apply(lambda r: geodesic((r["lat"], r["lon"]), center).meters, axis=1)
-            df_nearby = df[(df["afstand"] <= 500) & (df["OpRoute"] == "Ja")]
-
-            st.markdown(f"### 🗺️ Kaart rond container: `{container['Container name']}`")
-
-            m = folium.Map(location=center, zoom_start=16)
-
-            # Marker: geselecteerde container
-            folium.Marker(
-                location=center,
-                popup=f"Geselecteerd: {container['Container name']}",
-                icon=folium.Icon(color="red", icon="star")
-            ).add_to(m)
-
-            # Marker: omliggende OpRoute-containers
-            for _, row in df_nearby.iterrows():
-                folium.CircleMarker(
-                    location=(row["lat"], row["lon"]),
-                    radius=5,
-                    color="green",
-                    fill=True,
-                    fill_opacity=0.8,
-                    tooltip=folium.Tooltip(
-                        f"📦 {row['Container name']}<br>"
-                        f"📍 {row['Location code']}<br>"
-                        f"📊 Vulgraad: {row['Fill level (%)']}%"
-                    )
-                ).add_to(m)
-
-            st_folium(m, width=1000, height=600)
