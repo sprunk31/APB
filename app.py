@@ -62,7 +62,7 @@ tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Rou
 with tab1:
     col_role = st.columns([2, 8])[0]
     with col_role:
-        rol = st.selectbox("👤 Kies je rol:", ["Upload", "Gebruiker Delft", "Gebruiker Den Haag"], label_visibility="collapsed")
+        rol = st.selectbox("👤 Kies je rol:", ["Gebruiker", "Upload"], label_visibility="collapsed")
 
     if rol == "Upload":
         st.subheader("📤 Upload Excel-bestanden")
@@ -96,7 +96,6 @@ with tab1:
     elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df = st.session_state['df1_filtered']
 
-        # ⏱️ Init logupdate per gebruiker
         try:
             client = gspread.authorize(CREDENTIALS)
             sheet_totaal = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
@@ -106,21 +105,19 @@ with tab1:
             datum_met_tijd = vandaag
             aantal_vol = int((df['Fill level (%)'] >= 80).sum())
 
+            # Alle rijen uit Logboek totaal ophalen
             totaal_rows = sheet_totaal.get_all_values()
             totaal_header = totaal_rows[0]
             bestaande_rijen = totaal_rows[1:]
 
+            # Zoek rijnummer van vandaag
             rijnummer_vandaag = None
-            for idx, rij in enumerate(bestaande_rijen, start=2):  # +2 wegens header
+            for idx, rij in enumerate(bestaande_rijen, start=2):  # start=2 vanwege header
                 if rij[0][:10] == vandaag:
                     rijnummer_vandaag = idx
                     break
 
-            # Bepaal kolomnummers (nul-gebaseerd → voor update is 1-gebaseerd)
-            kolom_delft = totaal_header.index("Aantal bakken toegevoegd Delft") + 1
-            kolom_denhaag = totaal_header.index("Aantal bakken toegevoegd Den Haag") + 1
-
-            # Tel aantal gelogde containers in 'Logboek Afvalcontainers' voor vandaag
+            # Tel aantal gelogde containers in Logboek Afvalcontainers
             container_rows = sheet_containers.get_all_values()
             container_header = container_rows[0]
             datum_index = container_header.index("Datum")
@@ -129,27 +126,21 @@ with tab1:
             )
 
             if rijnummer_vandaag:
-                # Haal bestaande rij op en pas alleen de juiste kolom aan
-                bestaande_waarden = sheet_totaal.row_values(rijnummer_vandaag)
-                while len(bestaande_waarden) < len(totaal_header):
-                    bestaande_waarden.append("0")
-
-                bestaande_waarden[1] = str(aantal_vol)  # Aantal volle bakken Abel
-
-                if rol == "Gebruiker Delft":
-                    bestaande_waarden[kolom_delft - 1] = str(int(bestaande_waarden[kolom_delft - 1]) + 1)
-                elif rol == "Gebruiker Den Haag":
-                    bestaande_waarden[kolom_denhaag - 1] = str(int(bestaande_waarden[kolom_denhaag - 1]) + 1)
-
-                sheet_totaal.update(f"A{rijnummer_vandaag}:{chr(64 + len(bestaande_waarden))}{rijnummer_vandaag}",
-                                    [bestaande_waarden])
+                # Update bestaande rij (alle 3 kolommen opnieuw wegschrijven)
+                sheet_totaal.update(f"A{rijnummer_vandaag}:C{rijnummer_vandaag}", [[
+                    datum_met_tijd,
+                    aantal_vol,
+                    aantal_gelogde_containers
+                ]])
+                st.toast("🔄 Logboek totaal bijgewerkt voor vandaag.")
             else:
-                nieuwe_rij = [datum_met_tijd, aantal_vol, 0, 0]
-                if rol == "Gebruiker Delft":
-                    nieuwe_rij[2] = 1
-                elif rol == "Gebruiker Den Haag":
-                    nieuwe_rij[3] = 1
-                sheet_totaal.append_row(nieuwe_rij)
+                # Nog niet gelogd vandaag → voeg nieuwe regel toe
+                sheet_totaal.append_row([
+                    datum_met_tijd,
+                    aantal_vol,
+                    aantal_gelogde_containers
+                ])
+                st.toast("📅 Dagelijkse log toegevoegd aan 'Logboek totaal'")
         except Exception as e:
             st.error("❌ Fout bij loggen of bijwerken van 'Logboek totaal'")
             st.exception(e)
@@ -329,5 +320,4 @@ with tab3:
             except Exception as e:
                 st.error("❌ Fout bij communiceren met Google Sheets.")
                 st.exception(e)
-
 ##
