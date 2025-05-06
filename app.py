@@ -34,7 +34,7 @@ SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"
 SHEET_NAME = "Logboek Afvalcontainers"
 DATA_PATH = "huidige_dataset.csv"
 
-def voeg_toe_aan_logboek(data_dict):
+def voeg_toe_aan_logboek(data_dict, gebruiker):
     try:
         client = gspread.authorize(CREDENTIALS)
         sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
@@ -45,11 +45,13 @@ def voeg_toe_aan_logboek(data_dict):
             data_dict["Location code"],
             data_dict["Content type"],
             data_dict["Fill level (%)"],
-            data_dict["Datum"]
+            data_dict["Datum"],
+            gebruiker
         ])
     except Exception as e:
         st.error("⚠️ Fout bij loggen naar Google Sheets:")
         st.exception(e)
+
 
 # 📥 Data laden
 if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
@@ -126,9 +128,12 @@ with tab1:
             container_rows = sheet_containers.get_all_values()
             container_header = container_rows[0]
             datum_index = container_header.index("Datum")
+            gebruiker_index = container_header.index("Gebruiker")
             aantal_gelogde_containers = sum(
-                1 for rij in container_rows[1:] if rij[datum_index][:10] == vandaag
+                1 for rij in container_rows[1:]
+                if rij[datum_index][:10] == vandaag and rij[gebruiker_index] == rol
             )
+
             # Stel rijnwaarde op basis van bestaande of nieuwe rij
             if rijnummer_vandaag:
                 bestaande_waarden = sheet_totaal.row_values(rijnummer_vandaag)
@@ -205,7 +210,7 @@ with tab1:
                 nieuwe_waarde = row["Extra meegegeven"]
                 if nieuwe_waarde != oude_waarde:
                     st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"] = nieuwe_waarde
-                    voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d")})
+                    voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d")}, gebruiker=rol)
                     wijzigingen += 1
             st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
             st.toast(f"✔️ {wijzigingen} wijziging(en) opgeslagen en gelogd.")
