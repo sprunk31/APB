@@ -223,53 +223,42 @@ with tab2:
 
 # -------------------- ROUTE STATUS --------------------
 with tab3:
-    st.header("📋 Status per route")
-
     if 'file2' not in st.session_state:
-        st.warning("❗ Upload eerst 'Bestand van Pieterbas' via het dashboard.")
+        st.warning("❗ Upload eerst 'Bestand van Pieterbas' via tabblad Dashboard.")
     else:
         df_routes = st.session_state['file2']
-        unieke_routes = sorted(df_routes["Route Omschrivijng"].dropna().unique())
+        unieke_routes = sorted(df_routes["Route Omschriving"].dropna().unique())
 
-        # 👣 Stap 1: Route kiezen
-        route = st.selectbox("1️⃣ Kies een route", unieke_routes, index=0)
+        st.markdown("### 🛣️ Route status doorgeven")
+        route = st.selectbox("Kies een route", unieke_routes)
 
-        # 👣 Stap 2: Status kiezen
         status_opties = ["Actueel", "Gedeeltelijk niet gereden door:", "Volledig niet gereden door:"]
-        gekozen_status = st.selectbox("2️⃣ Status van de route", status_opties)
+        gekozen_status = st.selectbox("Status", status_opties)
 
-        # 📝 Reden (indien nodig)
         reden = ""
         if "niet gereden" in gekozen_status:
-            reden = st.text_input("3️⃣ Geef een reden op")
+            reden = st.text_input("📌 Geef de reden op")
 
-        # 👆 Bevestigknop
         if st.button("✅ Bevestig status"):
             try:
                 client = gspread.authorize(CREDENTIALS)
                 sheet = client.open_by_key(SHEET_ID).worksheet("Logboek route")
                 records = sheet.get_all_records()
-                vandaag = datetime.now().strftime("%Y-%m-%d")
 
                 if gekozen_status == "Actueel":
-                    # Verwijder record van vandaag (alleen als er eerder een afwijking is gelogd)
-                    verwijderd = False
+                    # Zoek het laatst gelogde record van deze route met afwijking
                     for i in reversed(range(len(records))):
                         record = records[i]
-                        record_datum = record["Datum"][:10]
-                        if (
-                                record["Route"] == route and
-                                record["Status"] in ["Gedeeltelijk niet gereden door", "Volledig niet gereden door"] and
-                                record_datum == vandaag
-                        ):
-                            sheet.delete_rows(i + 2)  # +2 want header zit op rij 1
-                            verwijderd = True
-                            st.success(f"🗑️ Afwijking voor '{route}' op {vandaag} is verwijderd.")
+                        if record["Route"] == route and record["Status"] in [
+                            "Gedeeltelijk niet gereden door", "Volledig niet gereden door"
+                        ]:
+                            sheet.delete_rows(i + 2)  # +2 omdat header op rij 1 staat
+                            st.success(f"✅ Vorige afwijking van '{route}' is verwijderd uit het logboek.")
                             break
-                    if not verwijderd:
-                        st.info("ℹ️ Er is vandaag nog geen afwijking gelogd voor deze route.")
+                    else:
+                        st.info("ℹ️ Geen afwijking gevonden voor deze route om te verwijderen.")
                 else:
-                    if not reden.strip():
+                    if reden.strip() == "":
                         st.warning("⚠️ Vul een reden in voordat je logt.")
                     else:
                         sheet.append_row([
@@ -278,7 +267,7 @@ with tab3:
                             reden,
                             datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         ])
-                        st.success("📝 Afwijking succesvol gelogd.")
+                        st.success("📝 Nieuwe afwijking succesvol gelogd.")
             except Exception as e:
                 st.error("❌ Fout bij communiceren met Google Sheets.")
                 st.exception(e)
