@@ -10,6 +10,9 @@ from folium.plugins import HeatMap
 from streamlit_folium import st_folium
 import branca
 from geopy.distance import geodesic
+from streamlit_autorefresh import st_autorefresh
+
+st_autorefresh(interval=10000, key="datarefresh")
 
 # 🎨 Custom styling
 st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
@@ -133,6 +136,7 @@ with tab1:
 
         updated_df = grid_response["data"]
         # 🎯 Wijzigingen toepassen en loggen
+        # 🎯 Wijzigingen toepassen en loggen
         if st.button("✅ Wijzigingen toepassen en loggen"):
             wijzigingen = 0
             for _, row in updated_df.iterrows():
@@ -150,7 +154,7 @@ with tab1:
             # Herlaad de dataset en vernieuw de tabel
             st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
 
-            # Herlaad de reeds gelogde containers (op basis van de log)
+            # Haal de meest actuele gegevens op uit Google Sheets om de log bij te werken
             try:
                 client = gspread.authorize(CREDENTIALS)
                 sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
