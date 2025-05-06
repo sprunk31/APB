@@ -96,21 +96,33 @@ with tab1:
     elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df = st.session_state['df1_filtered']
 
-        # 📅 + 🔴 Systeemdatum + aantal volle bakken loggen in 'Logboek totaal'
         try:
             client = gspread.authorize(CREDENTIALS)
-            sheet = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
+            sheet_totaal = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
+            sheet_containers = client.open_by_key(SHEET_ID).worksheet("Logboek Afvalcontainers")
 
             vandaag = datetime.now().strftime("%Y-%m-%d")
             aantal_vol = int((df['Fill level (%)'] >= 80).sum())
 
-            bestaande_rijen = sheet.col_values(1)  # Alleen datumkolom ophalen (kolom A)
-
-            # Controleer of de datum al voorkomt (alleen eerste 10 tekens vergelijken = YYYY-MM-DD)
+            # Bestaande datums in 'Logboek totaal' ophalen
+            bestaande_rijen = sheet_totaal.col_values(1)
             bestaande_datums = [rij[:10] for rij in bestaande_rijen if rij.strip() != ""]
 
             if vandaag not in bestaande_datums:
-                sheet.append_row([vandaag, aantal_vol])
+                # Alle rijen ophalen uit 'Logboek Afvalcontainers'
+                container_rows = sheet_containers.get_all_values()
+                container_header = container_rows[0]
+                datum_index = container_header.index("Datum")
+
+                aantal_gelogde_containers = sum(
+                    1 for rij in container_rows[1:] if rij[datum_index][:10] == vandaag
+                )
+
+                sheet_totaal.append_row([
+                    vandaag,
+                    aantal_vol,
+                    aantal_gelogde_containers
+                ])
                 st.toast("📅 Dagelijkse log toegevoegd aan 'Logboek totaal'")
         except Exception as e:
             st.error("❌ Fout bij loggen naar 'Logboek totaal'")
