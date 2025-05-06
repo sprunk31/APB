@@ -135,7 +135,7 @@ with tab1:
         )
 
         updated_df = grid_response["data"]
-        # 🎯 Wijzigingen toepassen en loggen
+
         # 🎯 Wijzigingen toepassen en loggen
         if st.button("✅ Wijzigingen toepassen en loggen"):
             wijzigingen = 0
