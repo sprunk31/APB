@@ -99,7 +99,7 @@ with tab1:
         # 🎯 KPI's
         kpi1, kpi2, kpi3 = st.columns(3)
         kpi1.metric("📦 Containers", len(df))
-        kpi2.metric("🔴 >80% gevuld", (df['Fill level (%)'] > 80).sum())
+        kpi2.metric("🔴 =>80% gevuld", (df['Fill level (%)'] > 80).sum())
         kpi3.metric("🚚 Op route", df['OpRoute'].value_counts().get('Ja', 0))
 
         # 🔍 Filters
