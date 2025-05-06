@@ -102,7 +102,7 @@ with tab1:
                 client = gspread.authorize(CREDENTIALS)
                 sheet = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
 
-                datum = datetime.now().strftime("%Y-%m-%d  %H:%M:%S")
+                datum = datetime.now().strftime("%Y-%m-%d")
                 aantal_vol = (df['Fill level (%)'] >= 80).sum()
 
                 sheet.append_row([str(datum), int(aantal_vol)])  # Zorg dat kolom A = Datum, B = Aantal volle bakken
