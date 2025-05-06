@@ -99,7 +99,7 @@ with tab1:
         # 🎯 KPI's
         kpi1, kpi2, kpi3 = st.columns(3)
         kpi1.metric("📦 Containers", len(df))
-        kpi2.metric("📊 Gem. vulgraad", f"{df['Fill level (%)'].mean():.1f}%")
+        kpi2.metric("🔴 >80% vulgraad", (df['Fill level (%)'] >= 80).sum())
         kpi3.metric("🚚 Op route", df['OpRoute'].value_counts().get('Ja', 0))
 
         # 🔍 Filters
@@ -132,6 +132,7 @@ with tab1:
         )
 
         updated_df = grid_response["data"]
+        # 🎯 Wijzigingen toepassen en loggen
         if st.button("✅ Wijzigingen toepassen en loggen"):
             wijzigingen = 0
             for _, row in updated_df.iterrows():
@@ -142,7 +143,44 @@ with tab1:
                     st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"] = nieuwe_waarde
                     voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
                     wijzigingen += 1
+
+            # Sla de bijgewerkte gegevens opnieuw op in de CSV
             st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
+
+            # Herlaad de dataset en vernieuw de tabel
+            st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
+
+            # Herlaad de reeds gelogde containers (op basis van de log)
+            try:
+                client = gspread.authorize(CREDENTIALS)
+                sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+                gelogde_rows = sheet.get_all_records()
+                gelogde_namen = {row["Container name"] for row in gelogde_rows}
+            except Exception as e:
+                st.error("❌ Fout bij ophalen van gelogde containers uit Google Sheets.")
+                st.exception(e)
+                gelogde_namen = set()
+
+            # Filter de bewerkbare en reeds gelogde containers opnieuw
+            df_display = st.session_state['df1_filtered']
+            reeds_gelogd = df_display[df_display["Container name"].isin(gelogde_namen)]
+            bewerkbare_rijen = df_display[~df_display["Container name"].isin(gelogde_namen)]
+
+            # Toon de gegevens opnieuw
+            st.dataframe(reeds_gelogd[zichtbaar], use_container_width=True)
+            st.markdown("### ✏️ Bewerkbare containers")
+            gb = GridOptionsBuilder.from_dataframe(bewerkbare_rijen[zichtbaar])
+            gb.configure_default_column(editable=False, sortable=True, filter=True, resizable=True)
+            gb.configure_column("Extra meegegeven", editable=True)
+
+            grid_response = AgGrid(
+                bewerkbare_rijen[zichtbaar],
+                gridOptions=gb.build(),
+                update_mode=GridUpdateMode.VALUE_CHANGED,
+                height=500,
+                allow_unsafe_jscode=True
+            )
+
             st.toast(f"✔️ {wijzigingen} wijziging(en) opgeslagen en gelogd.")
             st.rerun()
 
