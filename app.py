@@ -155,7 +155,7 @@ with tab1:
                 nieuwe_waarde = row["Extra meegegeven"]
                 if nieuwe_waarde != oude_waarde:
                     st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"] = nieuwe_waarde
-                    voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                    voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d")})
                     wijzigingen += 1
             st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
             st.toast(f"✔️ {wijzigingen} wijziging(en) opgeslagen en gelogd.")
