@@ -33,6 +33,12 @@ CREDENTIALS = Credentials.from_service_account_info(st.secrets["gcp_service_acco
 SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"
 SHEET_NAME = "Logboek Afvalcontainers"
 DATA_PATH = "huidige_dataset.csv"
+UPLOAD_STATUS_FILE = "upload_done.txt"
+if os.path.exists(UPLOAD_STATUS_FILE):
+    st.session_state["files_uploaded"] = True
+else:
+    st.session_state["files_uploaded"] = False
+
 
 def voeg_toe_aan_logboek(data_dict):
     try:
@@ -66,7 +72,10 @@ with tab1:
         if not st.session_state.get("files_uploaded", False):
             rollen.append("Upload")
 
-        rol = st.selectbox("👤 Kies je rol:", rollen, label_visibility="collapsed")
+        # Automatisch "Gebruiker" kiezen als Upload is afgerond
+        default_rol = "Gebruiker" if st.session_state.get("files_uploaded", False) else "Upload"
+
+        rol = st.selectbox("👤 Kies je rol:", rollen, index=rollen.index(default_rol), label_visibility="collapsed")
 
     if rol == "Upload":
         st.subheader("📤 Upload Excel-bestanden")
@@ -95,8 +104,13 @@ with tab1:
 
             st.session_state['df1_filtered'] = df1_filtered
             df1_filtered.to_csv(DATA_PATH, index=False)
+            with open(UPLOAD_STATUS_FILE, "w") as f:
+                f.write("done")
+
             st.session_state["files_uploaded"] = True
+
             st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
+
 
     elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df = st.session_state['df1_filtered']
