@@ -68,13 +68,11 @@ tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Rou
 with tab1:
     col_role = st.columns([2, 8])[0]
     with col_role:
-        rollen = ["Gebruiker Delft", "Gebruiker Den Haag"]
+        rollen = ["Delft", "Den Haag"]
         if not st.session_state.get("files_uploaded", False):
-            rollen.append("Upload")
+            rollen = ["Upload"] + rollen
 
-        # Automatisch "Gebruiker" kiezen als Upload is afgerond
-        default_rol = "Gebruiker" if st.session_state.get("files_uploaded", False) else "Upload"
-
+        default_rol = "Delft" if st.session_state.get("files_uploaded", False) else "Upload"
         rol = st.selectbox("👤 Kies je rol:", rollen, index=rollen.index(default_rol), label_visibility="collapsed")
 
     if rol == "Upload":
