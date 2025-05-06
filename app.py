@@ -10,24 +10,8 @@ from folium.plugins import HeatMap
 from streamlit_folium import st_folium
 import branca
 from geopy.distance import geodesic
-import folium
-from streamlit_folium import st_folium
 
-def toon_kaart(container_row):
-    lat, lon = map(float, container_row["Container location"].split(","))
-    m = folium.Map(location=[lat, lon], zoom_start=17)
-
-    folium.Marker(
-        [lat, lon],
-        popup=f"<b>{container_row['Container name']}</b><br>Locatiecode: {container_row['Location code']}<br>Vulgraad: {container_row['Fill level (%)']}%",
-        tooltip="Klik voor info",
-        icon=folium.Icon(color="green" if container_row["Fill level (%)"] < 80 else "red")
-    ).add_to(m)
-
-    st_folium(m, height=400, width=700)
-
-
-# 🎨 Custom styling
+# --- Layout config
 st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
 st.markdown("""
 <style>
@@ -40,16 +24,16 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
-
 st.title("♻️ Afvalcontainerbeheer Dashboard")
 
-# 📁 Google Sheets setup
+# --- Google Sheets config
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 CREDENTIALS = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=SCOPE)
 SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"
 SHEET_NAME = "Logboek Afvalcontainers"
 DATA_PATH = "huidige_dataset.csv"
 
+# --- Loggingfunctie
 def voeg_toe_aan_logboek(data_dict):
     try:
         client = gspread.authorize(CREDENTIALS)
@@ -67,18 +51,30 @@ def voeg_toe_aan_logboek(data_dict):
         st.error("⚠️ Fout bij loggen naar Google Sheets:")
         st.exception(e)
 
-# 📥 Data laden
+# --- Kaartfunctie
+def toon_kaart(container_row):
+    lat, lon = map(float, container_row["Container location"].split(","))
+    m = folium.Map(location=[lat, lon], zoom_start=17)
+
+    folium.Marker(
+        [lat, lon],
+        popup=f"<b>{container_row['Container name']}</b><br>Locatiecode: {container_row['Location code']}<br>Vulgraad: {container_row['Fill level (%)']}%",
+        tooltip="Klik voor info",
+        icon=folium.Icon(color="green" if container_row["Fill level (%)"] < 80 else "red")
+    ).add_to(m)
+
+    st_folium(m, height=400, width=700)
+
+# --- Dataset laden
 if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
     st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
 
-# 🔀 Navigatie
+# --- Navigatie
 tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Route-status"])
 
 # -------------------- DASHBOARD --------------------
 with tab1:
-    col_role = st.columns([2, 8])[0]
-    with col_role:
-        rol = st.selectbox("👤 Kies je rol:", ["Gebruiker", "Upload"], label_visibility="collapsed")
+    rol = st.selectbox("👤 Kies je rol:", ["Gebruiker", "Upload"], index=0)
 
     if rol == "Upload":
         st.subheader("📤 Upload Excel-bestanden")
@@ -88,7 +84,7 @@ with tab1:
         if file1 and file2:
             df1 = pd.read_excel(file1)
             df2 = pd.read_excel(file2)
-            st.session_state['file2'] = df2  # Voeg toe om file2 in session_state op te slaan
+            st.session_state['file2'] = df2
 
             df1_filtered = df1[
                 (df1['Operational state'] == 'In use') &
@@ -112,13 +108,13 @@ with tab1:
     elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df = st.session_state['df1_filtered']
 
-        # 🎯 KPI's
+        # KPI's
         kpi1, kpi2, kpi3 = st.columns(3)
         kpi1.metric("📦 Containers", len(df))
         kpi2.metric("📊 Gem. vulgraad", f"{df['Fill level (%)'].mean():.1f}%")
         kpi3.metric("🚚 Op route", df['OpRoute'].value_counts().get('Ja', 0))
 
-        # 🔍 Filters
+        # Filters
         with st.expander("🔎 Filters", expanded=True):
             filter_col1, filter_col2 = st.columns(2)
             with filter_col1:
@@ -131,53 +127,56 @@ with tab1:
         df_display = df_display[df_display["OpRoute"] == ("Ja" if op_route_ja else "Nee")]
         df_display = df_display.sort_values(by="GemiddeldeVulgraad", ascending=False)
 
-        zichtbaar = ["Container name", "Address", "City", "Location code", "Content type", "Fill level (%)", "CombinatieTelling", "GemiddeldeVulgraad", "OpRoute", "Extra meegegeven"]
+        zichtbaar = [
+            "Container name", "Address", "City", "Location code", "Content type",
+            "Fill level (%)", "CombinatieTelling", "GemiddeldeVulgraad", "OpRoute", "Extra meegegeven"
+        ]
         bewerkbare_rijen = df_display[df_display["Extra meegegeven"] == False]
 
         st.markdown("### ✏️ Bewerkbare containers")
-        gb = GridOptionsBuilder.from_dataframe(bewerkbare_rijen[zichtbaar])
-        gb.configure_default_column(editable=False, sortable=True, filter=True, resizable=True)
-        gb.configure_column("Extra meegegeven", editable=True)
+        col_table, col_kaart = st.columns([2, 3])
 
-        grid_response = AgGrid(
-            bewerkbare_rijen[zichtbaar],
-            gridOptions=gb.build(),
-            update_mode=GridUpdateMode.VALUE_CHANGED,
-            height=500,
-            allow_unsafe_jscode=True
-        )
+        with col_table:
+            gb = GridOptionsBuilder.from_dataframe(bewerkbare_rijen[zichtbaar])
+            gb.configure_default_column(editable=False, sortable=True, filter=True, resizable=True)
+            gb.configure_column("Extra meegegeven", editable=True)
 
-        updated_df = grid_response["data"]
-        if st.button("✅ Wijzigingen toepassen en loggen"):
-            wijzigingen = 0
-            for _, row in updated_df.iterrows():
-                mask = (st.session_state['df1_filtered']['Container name'] == row["Container name"])
-                oude_waarde = st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"].values[0]
-                nieuwe_waarde = row["Extra meegegeven"]
-                if nieuwe_waarde != oude_waarde:
-                    st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"] = nieuwe_waarde
-                    voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
-                    wijzigingen += 1
-            st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
-            st.toast(f"✔️ {wijzigingen} wijziging(en) opgeslagen en gelogd.")
-            st.rerun()
+            grid_response = AgGrid(
+                bewerkbare_rijen[zichtbaar],
+                gridOptions=gb.build(),
+                update_mode=GridUpdateMode.VALUE_CHANGED,
+                height=500,
+                allow_unsafe_jscode=True
+            )
+
+            updated_df = grid_response["data"]
+            if st.button("✅ Wijzigingen toepassen en loggen"):
+                wijzigingen = 0
+                for _, row in updated_df.iterrows():
+                    mask = (st.session_state['df1_filtered']['Container name'] == row["Container name"])
+                    oude_waarde = st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"].values[0]
+                    nieuwe_waarde = row["Extra meegegeven"]
+                    if nieuwe_waarde != oude_waarde:
+                        st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"] = nieuwe_waarde
+                        voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                        wijzigingen += 1
+                st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
+                st.toast(f"✔️ {wijzigingen} wijziging(en) opgeslagen en gelogd.")
+                st.rerun()
+
+        with col_kaart:
+            st.markdown("### 🗺️ Locatie bekijken")
+            container_opties = bewerkbare_rijen["Container name"].unique()
+            if len(container_opties) > 0:
+                geselecteerd = st.selectbox("Selecteer container", container_opties, key="kaart_selectie")
+                container_rij = bewerkbare_rijen[bewerkbare_rijen["Container name"] == geselecteerd].iloc[0]
+                toon_kaart(container_rij)
+            else:
+                st.info("📭 Geen containers beschikbaar om op kaart te tonen.")
 
         st.markdown("### 🔒 Reeds gelogde containers")
         reeds_gelogd = df_display[df_display["Extra meegegeven"] == True]
         st.dataframe(reeds_gelogd[zichtbaar], use_container_width=True)
-
-        # 🔍 Containerkaart tonen
-        st.markdown("### 🗺️ Locatie van container bekijken")
-
-        container_opties = bewerkbare_rijen["Container name"].unique()
-
-        if len(container_opties) > 0:
-            geselecteerd = st.selectbox("Selecteer een container om op kaart te tonen", container_opties,
-                                        key="kaart_selectie")
-            container_rij = bewerkbare_rijen[bewerkbare_rijen["Container name"] == geselecteerd].iloc[0]
-            toon_kaart(container_rij)
-        else:
-            st.info("📭 Geen containers beschikbaar om op kaart te tonen.")
 
 # -------------------- KAART --------------------
 with tab2:
