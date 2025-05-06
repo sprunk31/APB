@@ -153,10 +153,20 @@ with tab1:
             disp = disp[disp["OpRoute"] == 'Ja']
         disp = disp.sort_values("GemiddeldeVulgraad", ascending=False)
 
+        # Alleen de kolommen die je wilt tonen
         cols = [
-            "Container name","Address","City","Location code","Content type",
-            "Fill level (%)","CombinatieTelling","GemiddeldeVulgraad","OpRoute","Extra meegegeven"
+            "Container name", "Address", "City", "Location code", "Content type",
+            "Fill level (%)", "CombinatieTelling", "GemiddeldeVulgraad", "OpRoute", "Extra meegegeven"
         ]
+
+        # Maak een lege DataFrame voor het geval de kolom ontbreekt of er geen True‐waarden zijn
+        if "Extra meegegeven" in disp.columns:
+            done = disp.loc[disp["Extra meegegeven"] == True, cols]
+        else:
+            done = pd.DataFrame(columns=cols)
+
+        st.dataframe(done, use_container_width=True)
+
         editable = disp[disp["Extra meegegeven"] == False]
 
         st.markdown("### ✏️ Bewerkbare containers")
