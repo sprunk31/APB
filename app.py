@@ -95,9 +95,7 @@ with tab1:
             df1_filtered.to_csv(DATA_PATH, index=False)
             st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
 
-
     elif rol.startswith("Gebruiker") and 'df1_filtered' in st.session_state:
-
         df = st.session_state['df1_filtered']
 
         try:
@@ -108,23 +106,21 @@ with tab1:
             datum_met_tijd = vandaag
             aantal_vol = int((df['Fill level (%)'] >= 80).sum())
 
-            # Alle rijen uit Logboek totaal ophalen
+            # Headers en rijen ophalen
             totaal_rows = sheet_totaal.get_all_values()
             totaal_header = totaal_rows[0]
             bestaande_rijen = totaal_rows[1:]
-
-            # Zoek juiste kolomindex voor Delft of Den Haag
             kolom_delft = totaal_header.index("Aantal bakken toegevoegd Delft")
             kolom_denhaag = totaal_header.index("Aantal bakken toegevoegd Den Haag")
 
-            # Zoek rijnummer van vandaag
+            # Zoek rij van vandaag
             rijnummer_vandaag = None
-            for idx, rij in enumerate(bestaande_rijen, start=2):  # start=2 vanwege header
+            for idx, rij in enumerate(bestaande_rijen, start=2):  # start=2 voor header
                 if rij[0][:10] == vandaag:
                     rijnummer_vandaag = idx
                     break
 
-            # Tel aantal gelogde containers in Logboek Afvalcontainers
+            # Tellen uit Logboek Afvalcontainers, gefilterd op gebruiker
             container_rows = sheet_containers.get_all_values()
             container_header = container_rows[0]
             datum_index = container_header.index("Datum")
@@ -134,36 +130,38 @@ with tab1:
                 if rij[datum_index][:10] == vandaag and rij[gebruiker_index] == rol
             )
 
-            # Stel rijnwaarde op basis van bestaande of nieuwe rij
             if rijnummer_vandaag:
                 bestaande_waarden = sheet_totaal.row_values(rijnummer_vandaag)
                 while len(bestaande_waarden) < len(totaal_header):
-                    bestaande_waarden.append("")  # vul aan tot volledige breedte
-                bestaande_waarden[1] = str(aantal_vol)  # kolom B: Aantal volle bakken in Abel
+                    bestaande_waarden.append("")
+                bestaande_waarden[1] = str(aantal_vol)  # kolom 2 = Abel
                 if "Delft" in rol:
                     bestaande_waarden[kolom_delft] = str(aantal_gelogde_containers)
-
                 elif "Den Haag" in rol:
                     bestaande_waarden[kolom_denhaag] = str(aantal_gelogde_containers)
-                sheet_totaal.update(f"A{rijnummer_vandaag}:{chr(65 + len(totaal_header) - 1)}{rijnummer_vandaag}",
-                                    [bestaande_waarden])
-                st.toast("🔄 Logboek totaal bijgewerkt voor vandaag.")
+
+                # Update de hele rij
+                bereik = f"A{rijnummer_vandaag}:{chr(65 + len(totaal_header) - 1)}{rijnummer_vandaag}"
+                sheet_totaal.update(bereik, [bestaande_waarden])
+                st.toast("🔄 Logboek totaal bijgewerkt.")
 
             else:
+                # Nog geen rij voor vandaag → maak nieuwe met juiste kolom gevuld
                 nieuwe_rij = [""] * len(totaal_header)
                 nieuwe_rij[0] = datum_met_tijd
                 nieuwe_rij[1] = str(aantal_vol)
-
                 if "Delft" in rol:
                     nieuwe_rij[kolom_delft] = str(aantal_gelogde_containers)
-
                 elif "Den Haag" in rol:
                     nieuwe_rij[kolom_denhaag] = str(aantal_gelogde_containers)
                 sheet_totaal.append_row(nieuwe_rij)
-                st.toast("📅 Dagelijkse log toegevoegd aan 'Logboek totaal'")
+                st.toast("📅 Nieuwe rij toegevoegd aan Logboek totaal.")
+
 
         except Exception as e:
+
             st.error("❌ Fout bij loggen of bijwerken van 'Logboek totaal'")
+
             st.exception(e)
 
         # 🎯 KPI's
