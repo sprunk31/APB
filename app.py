@@ -12,7 +12,7 @@ import branca
 from geopy.distance import geodesic
 from streamlit_autorefresh import st_autorefresh
 
-st_autorefresh(interval=10000, key="datarefresh")
+
 
 # 🎨 Custom styling
 st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
@@ -29,7 +29,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("♻️ Afvalcontainerbeheer Dashboard")
-
+st_autorefresh(interval=10000, key="datarefresh")
 # 📁 Google Sheets setup
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 CREDENTIALS = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=SCOPE)
