@@ -185,7 +185,7 @@ with tab2:
         df_gemiddeld[["lat", "lon"]] = df_gemiddeld["Container location"].str.split(",", expand=True).astype(float)
 
         heat_data = [[row["lat"], row["lon"], row["Fill level (%)"]] for _, row in df_gemiddeld.iterrows()]
-        HeatMap(heat_data, radius=15, min_opacity=0.4, max_val=100).add_to(m)
+        HeatMap(heat_data, radius=15, min_opacity=0.4).add_to(m)
 
         for _, row in df_nabij.iterrows():
             folium.CircleMarker(
