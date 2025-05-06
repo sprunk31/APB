@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import os
 import gspread
 from google.oauth2.service_account import Credentials
 from datetime import datetime
@@ -26,288 +25,288 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("♻️ Afvalcontainerbeheer Dashboard")
-st_autorefresh(interval=10000, key="datarefresh")
+st_autorefresh(interval=10_000, key="datarefresh")
 
+# 1) Google Sheets setup
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 CREDENTIALS = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=SCOPE)
 SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"
-SHEET_NAME = "Logboek Afvalcontainers"
-DATA_PATH = "huidige_dataset.csv"
 
-if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
-    st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
+# Namen van de tabbladen
+CACHE_SHEET      = "Dagelijkse cache"
+TOTAL_SHEET      = "Logboek totaal"
+CONTAINERS_SHEET = "Logboek Afvalcontainers"
+ROUTE_SHEET      = "Logboek route"
 
+# 2) Worksheet helper
+def get_sheet(name):
+    client = gspread.authorize(CREDENTIALS)
+    return client.open_by_key(SHEET_ID).worksheet(name)
+
+# 3) Laad de cache uit Google Sheets (en cache in Streamlit)
+@st.cache_data(ttl=300)
+def load_cache():
+    try:
+        ws = get_sheet(CACHE_SHEET)
+        records = ws.get_all_records()
+        if not records:
+            return pd.DataFrame()
+        df = pd.DataFrame(records)
+        vandaag = datetime.now().strftime("%Y-%m-%d")
+        # Alleen behouden als de cache van vandaag is
+        if str(df.loc[0, "Datum"])[:10] != vandaag:
+            return pd.DataFrame()
+        return df.drop(columns=["Datum"])
+    except Exception:
+        return pd.DataFrame()
+
+# 4) Schrijf de cache terug naar Google Sheets
+def write_cache(df: pd.DataFrame):
+    ws = get_sheet(CACHE_SHEET)
+    ws.clear()
+    vandaag = datetime.now().strftime("%Y-%m-%d")
+    header = ["Datum"] + df.columns.tolist()
+    rows = [[vandaag] + row.tolist() for _, row in df.iterrows()]
+    ws.append_rows([header] + rows, value_input_option="RAW")
+    # Clear Streamlit cache zodat iedereen direct de nieuwe data ziet
+    st.cache_data.clear()
+
+# 5) Log het dagtotaal éénmalig in 'Logboek totaal'
+def log_daily_totals(df: pd.DataFrame):
+    ws = get_sheet(TOTAL_SHEET)
+    today = datetime.now().strftime("%Y-%m-%d")
+    rows = ws.get_all_records()
+    if not any(r["Datum"][:10] == today for r in rows):
+        aantal_vol = int((df['Fill level (%)'] >= 80).sum())
+        ws.append_row([today, aantal_vol, 0])
+
+# 6) Laad of initialiseert de cache
+df1_filtered = load_cache()
+
+# 7) Streamlit tabs
 tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Route-status"])
 
 with tab1:
-    col_role = st.columns([2, 8])[0]
-    with col_role:
+    col = st.columns([2, 8])[0]
+    with col:
         rol = st.selectbox("👤 Kies je rol:", ["Gebruiker", "Upload"], label_visibility="collapsed")
 
     if rol == "Upload":
         st.subheader("📤 Upload Excel-bestanden")
         file1 = st.file_uploader("Bestand van Abel", type=["xlsx"])
         file2 = st.file_uploader("Bestand van Pieterbas", type=["xlsx"])
-
         if file1 and file2:
-            df1 = pd.read_excel(file1)
-            df2 = pd.read_excel(file2)
+            df_raw  = pd.read_excel(file1)
+            df2     = pd.read_excel(file2)
             st.session_state['file2'] = df2
 
-            df1_filtered = df1[(df1['Operational state'] == 'In use') & (df1['Status'] == 'In use') & (df1['On hold'] == 'No')].copy()
-
-            df1_filtered["Content type"] = df1_filtered["Content type"].apply(lambda x: "Glas" if "glass" in str(x).lower() else x)
-
-            df1_filtered['CombinatieTelling'] = df1_filtered.groupby(['Location code', 'Content type'])['Content type'].transform('count')
-            df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(['Location code', 'Content type'])['Fill level (%)'].transform('mean')
-            df1_filtered['OpRoute'] = df1_filtered['Container name'].isin(df2['Omschrijving'].values).map({True: 'Ja', False: 'Nee'})
+            # Filter en enrich
+            df1_filtered = df_raw.query(
+                "`Operational state` == 'In use' and Status == 'In use' and `On hold` == 'No'"
+            ).copy()
+            df1_filtered["Content type"] = df1_filtered["Content type"]\
+                .apply(lambda x: "Glas" if "glass" in str(x).lower() else x)
+            df1_filtered['CombinatieTelling'] = df1_filtered.groupby(
+                ['Location code','Content type']
+            )['Content type'].transform('count')
+            df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(
+                ['Location code','Content type']
+            )['Fill level (%)'].transform('mean')
+            df1_filtered['OpRoute'] = df1_filtered['Container name']\
+                .isin(df2['Omschrijving']).map({True:'Ja', False:'Nee'})
             df1_filtered['Extra meegegeven'] = False
 
-            st.session_state['df1_filtered'] = df1_filtered
-            df1_filtered.to_csv(DATA_PATH, index=False)
-            st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
+            # Schrijf gecachede data en log dagelijks totaal
+            write_cache(df1_filtered)
+            log_daily_totals(df1_filtered)
+            st.success("✅ Cache bijgewerkt en dagtotaal gelogd.")
 
-            try:
-                client = gspread.authorize(CREDENTIALS)
-                sheet = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
-                vandaag = datetime.now().strftime("%Y-%m-%d")
-                logboek_rows = sheet.get_all_records()
-                reeds_gelogd = any(row["Datum"][:10] == vandaag for row in logboek_rows)
-                if not reeds_gelogd:
-                    aantal_vol = int((df1_filtered['Fill level (%)'] >= 80).sum())
-                    sheet.append_row([
-                        vandaag,
-                        aantal_vol,
-                        0
-                    ])
-                    st.success("🗓️ Dagelijkse log toegevoegd aan 'Logboek totaal'.")
-            except Exception as e:
-                st.error("⚠️ Fout bij loggen naar 'Logboek totaal'")
-                st.exception(e)
+    elif rol == "Gebruiker" and not df1_filtered.empty:
+        df = df1_filtered
 
-    elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
-        df = st.session_state['df1_filtered']
+        # KPI's
+        k1, k2, k3 = st.columns(3)
+        k1.metric("📦 Containers", len(df))
+        k2.metric("🔴 >80% vulgraad", int((df['Fill level (%)'] >= 80).sum()))
+        k3.metric("🚚 Op route", df['OpRoute'].eq('Ja').sum())
 
-        kpi1, kpi2, kpi3 = st.columns(3)
-        kpi1.metric("📦 Containers", len(df))
-        kpi2.metric("🔴 >80% vulgraad", (df['Fill level (%)'] >= 80).sum())
-        kpi3.metric("🚚 Op route", df['OpRoute'].value_counts().get('Ja', 0))
-
+        # Filters
         with st.expander("🔎 Filters", expanded=True):
-            filter_col1, filter_col2 = st.columns(2)
-            with filter_col1:
-                content_types = sorted(df["Content type"].unique())
-                selected_type = st.selectbox("Content type", content_types)
-            with filter_col2:
-                op_route_ja = st.toggle("📍 Alleen op route", value=False)
+            c1, c2 = st.columns(2)
+            with c1:
+                types    = sorted(df["Content type"].unique())
+                sel_type = st.selectbox("Content type", types)
+            with c2:
+                sel_route = st.checkbox("📍 Alleen op route", value=False)
 
-        df_display = df[df["Content type"] == selected_type]
-        df_display = df_display[df_display["OpRoute"] == ("Ja" if op_route_ja else "Nee")]
-        df_display = df_display.sort_values(by="GemiddeldeVulgraad", ascending=False)
+        disp = df[df["Content type"] == sel_type]
+        if sel_route:
+            disp = disp[disp["OpRoute"] == 'Ja']
+        disp = disp.sort_values("GemiddeldeVulgraad", ascending=False)
 
-        zichtbaar = ["Container name", "Address", "City", "Location code", "Content type", "Fill level (%)", "CombinatieTelling", "GemiddeldeVulgraad", "OpRoute", "Extra meegegeven"]
-        bewerkbare_rijen = df_display[df_display["Extra meegegeven"] == False]
+        cols = [
+            "Container name","Address","City","Location code","Content type",
+            "Fill level (%)","CombinatieTelling","GemiddeldeVulgraad","OpRoute","Extra meegegeven"
+        ]
+        editable = disp[disp["Extra meegegeven"] == False]
 
         st.markdown("### ✏️ Bewerkbare containers")
-        gb = GridOptionsBuilder.from_dataframe(bewerkbare_rijen[zichtbaar])
+        gb = GridOptionsBuilder.from_dataframe(editable[cols])
         gb.configure_default_column(editable=False, sortable=True, filter=True, resizable=True)
         gb.configure_column("Extra meegegeven", editable=True)
-
-        grid_response = AgGrid(
-            bewerkbare_rijen[zichtbaar],
+        grid = AgGrid(
+            editable[cols],
             gridOptions=gb.build(),
             update_mode=GridUpdateMode.VALUE_CHANGED,
-            height=500,
+            height=400,
             allow_unsafe_jscode=True
         )
-
-        updated_df = grid_response["data"]
+        updates = grid["data"]
 
         if st.button("✅ Wijzigingen toepassen en loggen"):
-            wijzigingen = 0
-            try:
-                client = gspread.authorize(CREDENTIALS)
-                sheet_totaal = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
-                rows_totaal = sheet_totaal.get_all_records()
-                vandaag = datetime.now().strftime("%Y-%m-%d")
-                rijindex_vandaag = next((i for i, r in enumerate(rows_totaal) if r["Datum"][:10] == vandaag), None)
-                aantal_extra = rows_totaal[rijindex_vandaag]["Aantal extra bakken"] if rijindex_vandaag is not None else 0
-            except Exception as e:
-                st.error("❌ Fout bij ophalen 'Logboek totaal'")
-                st.exception(e)
-                rijindex_vandaag = None
+            # Voorbereiding update Logboek totaal
+            ws_tot   = get_sheet(TOTAL_SHEET)
+            tot_rows = ws_tot.get_all_records()
+            today    = datetime.now().strftime("%Y-%m-%d")
+            idx      = next((i for i,r in enumerate(tot_rows) if r["Datum"][:10] == today), None)
+            extra    = int(tot_rows[idx]["Aantal extra bakken"]) if idx is not None else 0
 
-            for _, row in updated_df.iterrows():
-                mask = (st.session_state['df1_filtered']['Container name'] == row["Container name"])
-                oude_waarde = st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"].values[0]
-                nieuwe_waarde = row["Extra meegegeven"]
-                if nieuwe_waarde != oude_waarde:
-                    st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"] = nieuwe_waarde
-                    if nieuwe_waarde and rijindex_vandaag is not None:
-                        aantal_extra += 1
-                        sheet_totaal.update_cell(rijindex_vandaag + 2, 3, aantal_extra)
+            wijzigingen = 0
+            ws_cache = get_sheet(CACHE_SHEET)
+
+            for r in updates:
+                mask = df["Container name"] == r["Container name"]
+                old  = df.loc[mask, "Extra meegegeven"].iat[0]
+                new  = r["Extra meegegeven"]
+                if new and not old:
+                    extra += 1
+                    if idx is not None:
+                        ws_tot.update_cell(idx+2, 3, extra)
+                    # Update de cache-sheet
+                    row_idx = df.index[mask][0] + 2  # header + 1-based
+                    col_idx = df.columns.get_loc("Extra meegegeven") + 1
+                    ws_cache.update_cell(row_idx, col_idx, True)
                     wijzigingen += 1
 
-            st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
-            st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
+            # Cache clear en herlaad
+            st.cache_data.clear()
+            df1_filtered = load_cache()
             st.toast(f"✔️ {wijzigingen} wijziging(en) opgeslagen en gelogd.")
-            st.rerun()
+            st.experimental_rerun()
 
         st.markdown("### 🔒 Reeds gelogde containers")
-        reeds_gelogd = df_display[df_display["Extra meegegeven"] == True]
-        st.dataframe(reeds_gelogd[zichtbaar], use_container_width=True)
+        done = disp[disp["Extra meegegeven"]]
+        st.dataframe(done[cols], use_container_width=True)
 
-        def update_oproute_based_on_log():
-            vandaag = datetime.now().strftime("%Y-%m-%d")
-            try:
-                client = gspread.authorize(CREDENTIALS)
-                sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
-                logboek_rows = sheet.get_all_records()
-                containers_vandaag = {row["Container name"] for row in logboek_rows if row["Datum"][:10] == vandaag}
-            except Exception as e:
-                st.error("❌ Fout bij ophalen van gelogde containers uit Google Sheets.")
-                st.exception(e)
-                containers_vandaag = set()
+        # Update OpRoute → “Extra meegegeven” voor containers gelogd vandaag
+        ws_cont = get_sheet(CONTAINERS_SHEET)
+        recs    = ws_cont.get_all_records()
+        today   = datetime.now().strftime("%Y-%m-%d")
+        done_names = {r["Container name"] for r in recs if r["Datum"][:10] == today}
+        df1_filtered.loc[
+            df1_filtered["Container name"].isin(done_names),
+            "OpRoute"
+        ] = "Extra meegegeven"
+        write_cache(df1_filtered)
 
-            df = st.session_state['df1_filtered']
-            df.loc[df["Container name"].isin(containers_vandaag), "OpRoute"] = "Extra meegegeven"
-            st.session_state['df1_filtered'] = df
-            df.to_csv(DATA_PATH, index=False)
-            st.success("✅ OpRoute kolom bijgewerkt voor containers gelogd vandaag.")
-
-        update_oproute_based_on_log()
-
-
-
-# -------------------- KAART --------------------
 with tab2:
-    if 'df1_filtered' in st.session_state:
-        df_map = st.session_state['df1_filtered'].copy()
+    if not df1_filtered.empty:
+        df_map = df1_filtered.copy()
         df_map[["lat", "lon"]] = df_map["Container location"].str.split(",", expand=True).astype(float)
 
         st.markdown("### 1️⃣ Kies content type")
-        content_types = sorted(df_map["Content type"].unique())
-        selected_type = st.selectbox("Fractie:", content_types, index=0)
-        df_filtered = df_map[df_map["Content type"] == selected_type]
+        types = sorted(df_map["Content type"].unique())
+        sel   = st.selectbox("Fractie:", types)
+        filt  = df_map[df_map["Content type"] == sel]
+        filt["select"] = filt["Container name"] + " (" + filt["Fill level (%)"].astype(str) + "%)"
+        sel_name = st.selectbox("Container (met vulgraad):", filt["select"])
+        cname    = sel_name.split(" (")[0]
+        center   = tuple(filt.loc[filt["Container name"] == cname, ["lat", "lon"]].iloc[0])
+        filt["nabij"] = filt.apply(lambda r: geodesic((r.lat, r.lon), center).meters <= 250, axis=1)
+        nearby       = filt[filt["nabij"]]
 
-        st.markdown("### 2️⃣ Kies container")
-        df_filtered["container_selectie"] = df_filtered["Container name"] + " (" + df_filtered["Fill level (%)"].astype(str) + "%)"
-        container_names = df_filtered["container_selectie"].tolist()
-        selected_container_name = st.selectbox("Container (met vulgraad):", container_names)
-        selected_container = selected_container_name.split(" (")[0]
+        m = folium.Map(location=center, zoom_start=16)
+        avg = nearby.groupby(["Container location", "Content type"])["Fill level (%)"].mean().reset_index()
+        avg[["lat", "lon"]] = avg["Container location"].str.split(",", expand=True).astype(float)
+        HeatMap(
+            [[r.lat, r.lon, r["Fill level (%)"]] for _, r in avg.iterrows()],
+            radius=15, min_opacity=0.4
+        ).add_to(m)
 
-        center_row = df_filtered[df_filtered["Container name"] == selected_container].iloc[0]
-        center_coord = (center_row["lat"], center_row["lon"])
-        df_filtered["binnen_250m"] = df_filtered.apply(lambda r: geodesic((r["lat"], r["lon"]), center_coord).meters <= 250, axis=1)
-        df_nabij = df_filtered[df_filtered["binnen_250m"] == True]
-
-        m = folium.Map(location=center_coord, zoom_start=16)
-        df_gemiddeld = df_nabij.groupby(["Container location", "Content type"])["Fill level (%)"].mean().reset_index()
-        df_gemiddeld[["lat", "lon"]] = df_gemiddeld["Container location"].str.split(",", expand=True).astype(float)
-
-        heat_data = [[row["lat"], row["lon"], row["Fill level (%)"]] for _, row in df_gemiddeld.iterrows()]
-        HeatMap(heat_data, radius=15, min_opacity=0.4).add_to(m)
-
-        for _, row in df_nabij.iterrows():
+        for _, r in nearby.iterrows():
             folium.CircleMarker(
-                location=(row["lat"], row["lon"]),
+                location=(r.lat, r.lon),
                 radius=5,
-                color="blue",
                 fill=True,
-                fill_color="blue",
                 fill_opacity=0.8,
-                tooltip=folium.Tooltip(
-                    f"""
-                    📦 <b>{row['Container name']}</b><br>
-                    📍 Locatie: {row['Location code']}<br>
-                    📊 Vulgraad: {row['Fill level (%)']}%
-                    """,
-                    sticky=True
+                tooltip=(
+                    f"📦 <b>{r['Container name']}</b><br>"
+                    f"📍 {r['Location code']}<br>"
+                    f"📊 {r['Fill level (%)']}%"
                 )
             ).add_to(m)
 
         folium.Marker(
-            location=center_coord,
-            popup=f"Geselecteerd: {selected_container}",
+            location=center,
+            popup=f"Geselecteerd: {cname}",
             icon=folium.Icon(color="red", icon="star")
         ).add_to(m)
 
+        # Legenda
         legend = branca.element.MacroElement()
         legend._template = branca.element.Template("""
-        {% macro html(this, kwargs) %}
-        <div style="position: fixed; bottom: 50px; left: 50px; width: 210px; height: 150px;
-            background-color: white; border:2px solid grey; z-index:9999; font-size:14px; padding: 10px;">
-            <b>Legenda vulgraad (%)</b><br>
-            <div style="margin-top:8px;">
-                <span style="background:#0000ff;width:12px;height:12px;display:inline-block;"></span> 0–30%<br>
-                <span style="background:#00ffff;width:12px;height:12px;display:inline-block;"></span> 30–60%<br>
-                <span style="background:#ffff00;width:12px;height:12px;display:inline-block;"></span> 60–90%<br>
-                <span style="background:#ff0000;width:12px;height:12px;display:inline-block;"></span> 90–100%<br>
-            </div>
+        {% macro html(this,kwargs) %}
+        <div style="position:fixed;bottom:50px;left:50px;
+                    width:210px;height:150px;background:white;
+                    border:2px solid grey;z-index:9999;font-size:14px;padding:10px;">
+          <b>Legenda vulgraad (%)</b><br>
+          <span style="background:#0000ff;width:12px;height:12px;display:inline-block;"></span> 0–30%<br>
+          <span style="background:#00ffff;width:12px;height:12px;display:inline-block;"></span> 30–60%<br>
+          <span style="background:#ffff00;width:12px;height:12px;display:inline-block;"></span> 60–90%<br>
+          <span style="background:#ff0000;width:12px;height:12px;display:inline-block;"></span> 90–100%<br>
         </div>
         {% endmacro %}
         """)
         m.get_root().add_child(legend)
+
         st_folium(m, width=1000, height=600)
 
-# -------------------- ROUTE STATUS --------------------
 with tab3:
     st.header("📋 Status per route")
-
     if 'file2' not in st.session_state:
-        st.warning("❗ Upload eerst 'Bestand van Pieterbas' via het dashboard.")
+        st.warning("❗ Upload eerst 'Bestand van Pieterbas'")
     else:
-        df_routes = st.session_state['file2']
-        unieke_routes = sorted(df_routes["Route Omschrijving"].dropna().unique())
-
-        # 👣 Stap 1: Route kiezen
-        route = st.selectbox("1️⃣ Kies een route", unieke_routes, index=0)
-
-        # 👣 Stap 2: Status kiezen
-        status_opties = ["Actueel", "Gedeeltelijk niet gereden door:", "Volledig niet gereden door:"]
-        gekozen_status = st.selectbox("2️⃣ Status van de route", status_opties)
-
-        # 📝 Reden (indien nodig)
-        reden = ""
-        if "niet gereden" in gekozen_status:
-            reden = st.text_input("3️⃣ Geef een reden op")
-
-        # 👆 Bevestigknop
+        dfr = st.session_state['file2']
+        routes = sorted(dfr["Route Omschrijving"].dropna().unique())
+        sel_route = st.selectbox("1️⃣ Kies een route", routes)
+        opts = ["Actueel", "Gedeeltelijk niet gereden door:", "Volledig niet gereden door:"]
+        stat = st.selectbox("2️⃣ Status", opts)
+        reason = st.text_input("3️⃣ Reden", "") if "niet gereden" in stat else ""
         if st.button("✅ Bevestig status"):
             try:
-                client = gspread.authorize(CREDENTIALS)
-                sheet = client.open_by_key(SHEET_ID).worksheet("Logboek route")
-                records = sheet.get_all_records()
-                vandaag = datetime.now().strftime("%Y-%m-%d")
-
-                if gekozen_status == "Actueel":
-                    # Verwijder record van vandaag (alleen als er eerder een afwijking is gelogd)
-                    verwijderd = False
-                    for i in reversed(range(len(records))):
-                        record = records[i]
-                        record_datum = record["Datum"][:10]
-                        if (
-                                record["Route"] == route and
-                                record["Status"] in ["Gedeeltelijk niet gereden door", "Volledig niet gereden door"] and
-                                record_datum == vandaag
-                        ):
-                            sheet.delete_rows(i + 2)  # +2 want header zit op rij 1
-                            verwijderd = True
-                            st.success(f"🗑️ Afwijking voor '{route}' op {vandaag} is verwijderd.")
+                wsr = get_sheet(ROUTE_SHEET)
+                recs = wsr.get_all_records()
+                today = datetime.now().strftime("%Y-%m-%d")
+                if stat == "Actueel":
+                    # verwijder afwijking van vandaag
+                    for i, rc in enumerate(recs[::-1]):
+                        if (rc["Route"] == sel_route
+                            and rc["Status"] != "Actueel"
+                            and rc["Datum"][:10] == today):
+                            wsr.delete_rows(len(recs) - i + 1)
+                            st.success("🗑️ Verwijderd")
                             break
-                    if not verwijderd:
-                        st.info("ℹ️ Er is vandaag nog geen afwijking gelogd voor deze route.")
                 else:
-                    if not reden.strip():
-                        st.warning("⚠️ Vul een reden in voordat je logt.")
+                    if not reason.strip():
+                        st.warning("⚠️ Geef reden op")
                     else:
-                        sheet.append_row([
-                            route,
-                            gekozen_status.replace(":", ""),
-                            reden,
+                        wsr.append_row([
+                            sel_route,
+                            stat.replace(":", ""),
+                            reason,
                             datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         ])
-                        st.success("📝 Afwijking succesvol gelogd.")
+                        st.success("📝 Gelogd")
             except Exception as e:
-                st.error("❌ Fout bij communiceren met Google Sheets.")
+                st.error("❌ Fout met Google Sheets")
                 st.exception(e)
