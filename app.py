@@ -271,3 +271,13 @@ with tab3:
             except Exception as e:
                 st.error("❌ Fout bij communiceren met Google Sheets.")
                 st.exception(e)
+
+    if 'datum_gelogd' not in st.session_state:
+        try:
+            client = gspread.authorize(CREDENTIALS)
+            sheet = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
+            sheet.append_row([datetime.now().strftime("%Y-%m-%d")])
+            st.session_state['datum_gelogd'] = True
+        except Exception as e:
+            st.error("❌ Fout bij loggen van systeemdatum naar 'Logboek totaal'")
+            st.exception(e)
