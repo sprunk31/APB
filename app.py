@@ -105,7 +105,7 @@ with tab1:
                 datum = datetime.now().strftime("%Y-%m-%d")
                 aantal_vol = (df['Fill level (%)'] >= 80).sum()
 
-                sheet.append_row([datum, aantal_vol])  # Zorg dat kolom A = Datum, B = Aantal volle bakken
+                sheet.append_row([str(datum), int(aantal_vol)])  # Zorg dat kolom A = Datum, B = Aantal volle bakken
                 st.session_state['totaal_gelogd'] = True
             except Exception as e:
                 st.error("❌ Fout bij loggen naar 'Logboek totaal'")
