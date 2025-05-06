@@ -12,7 +12,6 @@ import branca
 from geopy.distance import geodesic
 from streamlit_autorefresh import st_autorefresh
 
-# 🎨 Custom styling
 st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
 st.markdown("""
 <style>
@@ -28,38 +27,18 @@ st.markdown("""
 
 st.title("♻️ Afvalcontainerbeheer Dashboard")
 st_autorefresh(interval=10000, key="datarefresh")
-# 📁 Google Sheets setup
+
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 CREDENTIALS = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=SCOPE)
 SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"
 SHEET_NAME = "Logboek Afvalcontainers"
 DATA_PATH = "huidige_dataset.csv"
 
-def voeg_toe_aan_logboek(data_dict):
-    try:
-        client = gspread.authorize(CREDENTIALS)
-        sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
-        sheet.append_row([
-            data_dict["Container name"],
-            data_dict["Address"],
-            data_dict["City"],
-            data_dict["Location code"],
-            data_dict["Content type"],
-            data_dict["Fill level (%)"],
-            data_dict["Datum"]
-        ])
-    except Exception as e:
-        st.error("⚠️ Fout bij loggen naar Google Sheets:")
-        st.exception(e)
-
-# 📥 Data laden
 if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
     st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
 
-# 🔀 Navigatie
 tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Route-status"])
 
-# -------------------- DASHBOARD --------------------
 with tab1:
     col_role = st.columns([2, 8])[0]
     with col_role:
@@ -73,17 +52,11 @@ with tab1:
         if file1 and file2:
             df1 = pd.read_excel(file1)
             df2 = pd.read_excel(file2)
-            st.session_state['file2'] = df2  # Voeg toe om file2 in session_state op te slaan
+            st.session_state['file2'] = df2
 
-            df1_filtered = df1[
-                (df1['Operational state'] == 'In use') &
-                (df1['Status'] == 'In use') &
-                (df1['On hold'] == 'No')
-            ].copy()
+            df1_filtered = df1[(df1['Operational state'] == 'In use') & (df1['Status'] == 'In use') & (df1['On hold'] == 'No')].copy()
 
-            df1_filtered["Content type"] = df1_filtered["Content type"].apply(
-                lambda x: "Glas" if "glass" in str(x).lower() else x
-            )
+            df1_filtered["Content type"] = df1_filtered["Content type"].apply(lambda x: "Glas" if "glass" in str(x).lower() else x)
 
             df1_filtered['CombinatieTelling'] = df1_filtered.groupby(['Location code', 'Content type'])['Content type'].transform('count')
             df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(['Location code', 'Content type'])['Fill level (%)'].transform('mean')
@@ -94,16 +67,32 @@ with tab1:
             df1_filtered.to_csv(DATA_PATH, index=False)
             st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
 
+            try:
+                client = gspread.authorize(CREDENTIALS)
+                sheet = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
+                vandaag = datetime.now().strftime("%Y-%m-%d")
+                logboek_rows = sheet.get_all_records()
+                reeds_gelogd = any(row["Datum"][:10] == vandaag for row in logboek_rows)
+                if not reeds_gelogd:
+                    aantal_vol = (df1_filtered['Fill level (%)'] >= 80).sum()
+                    sheet.append_row([
+                        vandaag,
+                        aantal_vol,
+                        0
+                    ])
+                    st.success("🗓️ Dagelijkse log toegevoegd aan 'Logboek totaal'.")
+            except Exception as e:
+                st.error("⚠️ Fout bij loggen naar 'Logboek totaal'")
+                st.exception(e)
+
     elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df = st.session_state['df1_filtered']
 
-        # 🎯 KPI's
         kpi1, kpi2, kpi3 = st.columns(3)
         kpi1.metric("📦 Containers", len(df))
         kpi2.metric("🔴 >80% vulgraad", (df['Fill level (%)'] >= 80).sum())
         kpi3.metric("🚚 Op route", df['OpRoute'].value_counts().get('Ja', 0))
 
-        # 🔍 Filters
         with st.expander("🔎 Filters", expanded=True):
             filter_col1, filter_col2 = st.columns(2)
             with filter_col1:
@@ -134,55 +123,33 @@ with tab1:
 
         updated_df = grid_response["data"]
 
-        # 🎯 Wijzigingen toepassen en loggen
         if st.button("✅ Wijzigingen toepassen en loggen"):
             wijzigingen = 0
+            try:
+                client = gspread.authorize(CREDENTIALS)
+                sheet_totaal = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
+                rows_totaal = sheet_totaal.get_all_records()
+                vandaag = datetime.now().strftime("%Y-%m-%d")
+                rijindex_vandaag = next((i for i, r in enumerate(rows_totaal) if r["Datum"][:10] == vandaag), None)
+                aantal_extra = rows_totaal[rijindex_vandaag]["Aantal extra bakken"] if rijindex_vandaag is not None else 0
+            except Exception as e:
+                st.error("❌ Fout bij ophalen 'Logboek totaal'")
+                st.exception(e)
+                rijindex_vandaag = None
+
             for _, row in updated_df.iterrows():
                 mask = (st.session_state['df1_filtered']['Container name'] == row["Container name"])
                 oude_waarde = st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"].values[0]
                 nieuwe_waarde = row["Extra meegegeven"]
                 if nieuwe_waarde != oude_waarde:
                     st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"] = nieuwe_waarde
-                    voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d")})
+                    if nieuwe_waarde and rijindex_vandaag is not None:
+                        aantal_extra += 1
+                        sheet_totaal.update_cell(rijindex_vandaag + 2, 3, aantal_extra)
                     wijzigingen += 1
 
-            # Sla de bijgewerkte gegevens opnieuw op in de CSV
             st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
-
-            # Herlaad de dataset en vernieuw de tabel
             st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
-
-            # Haal de meest actuele gegevens op uit Google Sheets om de log bij te werken
-            try:
-                client = gspread.authorize(CREDENTIALS)
-                sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
-                gelogde_rows = sheet.get_all_records()
-                gelogde_namen = {row["Container name"] for row in gelogde_rows}
-            except Exception as e:
-                st.error("❌ Fout bij ophalen van gelogde containers uit Google Sheets.")
-                st.exception(e)
-                gelogde_namen = set()
-
-            # Filter de bewerkbare en reeds gelogde containers opnieuw
-            df_display = st.session_state['df1_filtered']
-            reeds_gelogd = df_display[df_display["Container name"].isin(gelogde_namen)]
-            bewerkbare_rijen = df_display[~df_display["Container name"].isin(gelogde_namen)]
-
-            # Toon de gegevens opnieuw
-            st.dataframe(reeds_gelogd[zichtbaar], use_container_width=True)
-            st.markdown("### ✏️ Bewerkbare containers")
-            gb = GridOptionsBuilder.from_dataframe(bewerkbare_rijen[zichtbaar])
-            gb.configure_default_column(editable=False, sortable=True, filter=True, resizable=True)
-            gb.configure_column("Extra meegegeven", editable=True)
-
-            grid_response = AgGrid(
-                bewerkbare_rijen[zichtbaar],
-                gridOptions=gb.build(),
-                update_mode=GridUpdateMode.VALUE_CHANGED,
-                height=500,
-                allow_unsafe_jscode=True
-            )
-
             st.toast(f"✔️ {wijzigingen} wijziging(en) opgeslagen en gelogd.")
             st.rerun()
 
@@ -190,35 +157,26 @@ with tab1:
         reeds_gelogd = df_display[df_display["Extra meegegeven"] == True]
         st.dataframe(reeds_gelogd[zichtbaar], use_container_width=True)
 
-from datetime import datetime
+        def update_oproute_based_on_log():
+            vandaag = datetime.now().strftime("%Y-%m-%d")
+            try:
+                client = gspread.authorize(CREDENTIALS)
+                sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+                logboek_rows = sheet.get_all_records()
+                containers_vandaag = {row["Container name"] for row in logboek_rows if row["Datum"][:10] == vandaag}
+            except Exception as e:
+                st.error("❌ Fout bij ophalen van gelogde containers uit Google Sheets.")
+                st.exception(e)
+                containers_vandaag = set()
 
-# 🎯 Na het loggen van wijzigingen of het vernieuwen van de data
-def update_oproute_based_on_log():
-    vandaag = datetime.now().strftime("%Y-%m-%d")  # Haal de systeemdatum op (vandaag)
+            df = st.session_state['df1_filtered']
+            df.loc[df["Container name"].isin(containers_vandaag), "OpRoute"] = "Extra meegegeven"
+            st.session_state['df1_filtered'] = df
+            df.to_csv(DATA_PATH, index=False)
+            st.success("✅ OpRoute kolom bijgewerkt voor containers gelogd vandaag.")
 
-    # Haal de meest actuele gegevens op uit Google Sheets (logboek)
-    try:
-        client = gspread.authorize(CREDENTIALS)
-        sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
-        logboek_rows = sheet.get_all_records()
-        # Filter op de logdatum (vandaag)
-        containers_vandaag = {row["Container name"] for row in logboek_rows if row["Datum"][:10] == vandaag}
-    except Exception as e:
-        st.error("❌ Fout bij ophalen van gelogde containers uit Google Sheets.")
-        st.exception(e)
-        containers_vandaag = set()
+        update_oproute_based_on_log()
 
-    # Update de 'OpRoute' kolom in de df1_filtered dataset
-    df = st.session_state['df1_filtered']
-    df.loc[df["Container name"].isin(containers_vandaag), "OpRoute"] = "Ja"
-
-    # Sla de bijgewerkte data opnieuw op in de CSV
-    st.session_state['df1_filtered'] = df
-    df.to_csv(DATA_PATH, index=False)
-    st.success("✅ OpRoute kolom bijgewerkt voor containers gelogd vandaag.")
-
-# Roep deze functie aan na het loggen of na het vernieuwen van gegevens
-update_oproute_based_on_log()
 
 
 # -------------------- KAART --------------------
