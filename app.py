@@ -65,41 +65,33 @@ with tab1:
         rol = st.selectbox("👤 Kies je rol:", ["Gebruiker", "Upload"], label_visibility="collapsed")
 
     if rol == "Upload":
-        if st.session_state.get("upload_voltooid", False):
-            st.info("✅ Beide bestanden zijn al geüpload en verwerkt. Upload is niet meer nodig.")
-        else:
-            st.subheader("📤 Upload Excel-bestanden")
-            file1 = st.file_uploader("Bestand van Abel", type=["xlsx"], key="file1")
-            file2 = st.file_uploader("Bestand van Pieterbas", type=["xlsx"], key="file2")
+        st.subheader("📤 Upload Excel-bestanden")
+        file1 = st.file_uploader("Bestand van Abel", type=["xlsx"])
+        file2 = st.file_uploader("Bestand van Pieterbas", type=["xlsx"])
 
-            if file1 and file2:
-                df1 = pd.read_excel(file1)
-                df2 = pd.read_excel(file2)
-                st.session_state['file2'] = df2
+        if file1 and file2:
+            df1 = pd.read_excel(file1)
+            df2 = pd.read_excel(file2)
+            st.session_state['file2'] = df2  # Voeg toe om file2 in session_state op te slaan
 
-                df1_filtered = df1[
-                    (df1['Operational state'] == 'In use') &
-                    (df1['Status'] == 'In use') &
-                    (df1['On hold'] == 'No')
-                    ].copy()
+            df1_filtered = df1[
+                (df1['Operational state'] == 'In use') &
+                (df1['Status'] == 'In use') &
+                (df1['On hold'] == 'No')
+            ].copy()
 
-                df1_filtered["Content type"] = df1_filtered["Content type"].apply(
-                    lambda x: "Glas" if "glass" in str(x).lower() else x
-                )
+            df1_filtered["Content type"] = df1_filtered["Content type"].apply(
+                lambda x: "Glas" if "glass" in str(x).lower() else x
+            )
 
-                df1_filtered['CombinatieTelling'] = df1_filtered.groupby(['Location code', 'Content type'])[
-                    'Content type'].transform('count')
-                df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(['Location code', 'Content type'])[
-                    'Fill level (%)'].transform('mean')
-                df1_filtered['OpRoute'] = df1_filtered['Container name'].isin(df2['Omschrijving'].values).map(
-                    {True: 'Ja', False: 'Nee'})
-                df1_filtered['Extra meegegeven'] = False
+            df1_filtered['CombinatieTelling'] = df1_filtered.groupby(['Location code', 'Content type'])['Content type'].transform('count')
+            df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(['Location code', 'Content type'])['Fill level (%)'].transform('mean')
+            df1_filtered['OpRoute'] = df1_filtered['Container name'].isin(df2['Omschrijving'].values).map({True: 'Ja', False: 'Nee'})
+            df1_filtered['Extra meegegeven'] = False
 
-                st.session_state['df1_filtered'] = df1_filtered
-                df1_filtered.to_csv(DATA_PATH, index=False)
-                st.session_state["upload_voltooid"] = True  # ✅ markeer upload als voltooid
-                st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
-
+            st.session_state['df1_filtered'] = df1_filtered
+            df1_filtered.to_csv(DATA_PATH, index=False)
+            st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
 
     elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df = st.session_state['df1_filtered']
@@ -185,7 +177,7 @@ with tab2:
         df_gemiddeld[["lat", "lon"]] = df_gemiddeld["Container location"].str.split(",", expand=True).astype(float)
 
         heat_data = [[row["lat"], row["lon"], row["Fill level (%)"]] for _, row in df_gemiddeld.iterrows()]
-        HeatMap(heat_data, radius=15, min_opacity=0.4).add_to(m)
+        HeatMap(heat_data, radius=15, min_opacity=0.4, max_val=100).add_to(m)
 
         for _, row in df_nabij.iterrows():
             folium.CircleMarker(
@@ -234,12 +226,8 @@ with tab3:
     if 'file2' not in st.session_state:
         st.warning("❗ Upload eerst 'Bestand van Pieterbas' via tabblad Dashboard.")
     else:
-        df_routes = st.session_state.get('file2')
-
-        if df_routes is None or not isinstance(df_routes, pd.DataFrame):
-            st.error("❌ Kon bestand van Pieterbas niet correct laden. Herlaad of upload opnieuw via het Dashboard.")
-        else:
-            unieke_routes = sorted(df_routes["Route Omschrijving"].dropna().unique())
+        df_routes = st.session_state['file2']
+        unieke_routes = sorted(df_routes["Route Omschriving"].dropna().unique())
 
         st.markdown("### 🛣️ Route status doorgeven")
         route = st.selectbox("Kies een route", unieke_routes)
