@@ -138,7 +138,20 @@ with tab1:
         df_display = df_display.sort_values(by="GemiddeldeVulgraad", ascending=False)
 
         zichtbaar = ["Container name", "Address", "City", "Location code", "Content type", "Fill level (%)", "CombinatieTelling", "GemiddeldeVulgraad", "OpRoute", "Extra meegegeven"]
-        bewerkbare_rijen = df_display[df_display["Extra meegegeven"] == False]
+        # Haal gelogde container namen op uit Google Sheets
+        try:
+            client = gspread.authorize(CREDENTIALS)
+            sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+            gelogde_rows = sheet.get_all_records()
+            gelogde_namen = {row["Container name"] for row in gelogde_rows}
+        except Exception as e:
+            st.error("❌ Fout bij ophalen van gelogde containers uit Google Sheets.")
+            st.exception(e)
+            gelogde_namen = set()
+
+        # Verdeel op basis van deze log
+        bewerkbare_rijen = df_display[~df_display["Container name"].isin(gelogde_namen)]
+        reeds_gelogd = df_display[df_display["Container name"].isin(gelogde_namen)]
 
         st.markdown("### ✏️ Bewerkbare containers")
         gb = GridOptionsBuilder.from_dataframe(bewerkbare_rijen[zichtbaar])
