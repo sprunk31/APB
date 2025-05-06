@@ -97,19 +97,24 @@ with tab1:
         df = st.session_state['df1_filtered']
 
         # 📅 + 🔴 Systeemdatum + aantal volle bakken loggen in 'Logboek totaal'
-        if 'totaal_gelogd' not in st.session_state:
-            try:
-                client = gspread.authorize(CREDENTIALS)
-                sheet = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
+        try:
+            client = gspread.authorize(CREDENTIALS)
+            sheet = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
 
-                datum = datetime.now().strftime("%Y-%m-%d")
-                aantal_vol = (df['Fill level (%)'] >= 80).sum()
+            vandaag = datetime.now().strftime("%Y-%m-%d")
+            aantal_vol = int((df['Fill level (%)'] >= 80).sum())
 
-                sheet.append_row([str(datum), int(aantal_vol)])  # Zorg dat kolom A = Datum, B = Aantal volle bakken
-                st.session_state['totaal_gelogd'] = True
-            except Exception as e:
-                st.error("❌ Fout bij loggen naar 'Logboek totaal'")
-                st.exception(e)
+            bestaande_rijen = sheet.col_values(1)  # Alleen datumkolom ophalen (kolom A)
+
+            # Controleer of de datum al voorkomt (alleen eerste 10 tekens vergelijken = YYYY-MM-DD)
+            bestaande_datums = [rij[:10] for rij in bestaande_rijen if rij.strip() != ""]
+
+            if vandaag not in bestaande_datums:
+                sheet.append_row([vandaag + " 00:00:00", aantal_vol])
+                st.toast("📅 Dagelijkse log toegevoegd aan 'Logboek totaal'")
+        except Exception as e:
+            st.error("❌ Fout bij loggen naar 'Logboek totaal'")
+            st.exception(e)
 
         # 🎯 KPI's
         kpi1, kpi2, kpi3 = st.columns(3)
