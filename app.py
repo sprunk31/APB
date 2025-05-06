@@ -12,8 +12,6 @@ import branca
 from geopy.distance import geodesic
 from streamlit_autorefresh import st_autorefresh
 
-
-
 # 🎨 Custom styling
 st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
 st.markdown("""
@@ -145,7 +143,7 @@ with tab1:
                 nieuwe_waarde = row["Extra meegegeven"]
                 if nieuwe_waarde != oude_waarde:
                     st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"] = nieuwe_waarde
-                    voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
+                    voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d")})
                     wijzigingen += 1
 
             # Sla de bijgewerkte gegevens opnieuw op in de CSV
@@ -191,6 +189,37 @@ with tab1:
         st.markdown("### 🔒 Reeds gelogde containers")
         reeds_gelogd = df_display[df_display["Extra meegegeven"] == True]
         st.dataframe(reeds_gelogd[zichtbaar], use_container_width=True)
+
+from datetime import datetime
+
+# 🎯 Na het loggen van wijzigingen of het vernieuwen van de data
+def update_oproute_based_on_log():
+    vandaag = datetime.now().strftime("%Y-%m-%d")  # Haal de systeemdatum op (vandaag)
+
+    # Haal de meest actuele gegevens op uit Google Sheets (logboek)
+    try:
+        client = gspread.authorize(CREDENTIALS)
+        sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
+        logboek_rows = sheet.get_all_records()
+        # Filter op de logdatum (vandaag)
+        containers_vandaag = {row["Container name"] for row in logboek_rows if row["Datum"][:10] == vandaag}
+    except Exception as e:
+        st.error("❌ Fout bij ophalen van gelogde containers uit Google Sheets.")
+        st.exception(e)
+        containers_vandaag = set()
+
+    # Update de 'OpRoute' kolom in de df1_filtered dataset
+    df = st.session_state['df1_filtered']
+    df.loc[df["Container name"].isin(containers_vandaag), "OpRoute"] = "Ja"
+
+    # Sla de bijgewerkte data opnieuw op in de CSV
+    st.session_state['df1_filtered'] = df
+    df.to_csv(DATA_PATH, index=False)
+    st.success("✅ OpRoute kolom bijgewerkt voor containers gelogd vandaag.")
+
+# Roep deze functie aan na het loggen of na het vernieuwen van gegevens
+update_oproute_based_on_log()
+
 
 # -------------------- KAART --------------------
 with tab2:
