@@ -62,7 +62,7 @@ tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Rou
 with tab1:
     col_role = st.columns([2, 8])[0]
     with col_role:
-        rol = st.selectbox("👤 Kies je rol:", ["Gebruiker", "Upload"], label_visibility="collapsed")
+        rol = st.selectbox("👤 Kies je rol:", ["Upload", "Gebruiker Delft", "Gebruiker Den Haag"], label_visibility="collapsed")
 
     if rol == "Upload":
         st.subheader("📤 Upload Excel-bestanden")
@@ -93,14 +93,15 @@ with tab1:
             df1_filtered.to_csv(DATA_PATH, index=False)
             st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
 
-    elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
+
+    elif rol.startswith("Gebruiker") and 'df1_filtered' in st.session_state:
+
         df = st.session_state['df1_filtered']
 
         try:
             client = gspread.authorize(CREDENTIALS)
             sheet_totaal = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
             sheet_containers = client.open_by_key(SHEET_ID).worksheet("Logboek Afvalcontainers")
-
             vandaag = datetime.now().strftime("%Y-%m-%d")
             datum_met_tijd = vandaag
             aantal_vol = int((df['Fill level (%)'] >= 80).sum())
@@ -109,6 +110,10 @@ with tab1:
             totaal_rows = sheet_totaal.get_all_values()
             totaal_header = totaal_rows[0]
             bestaande_rijen = totaal_rows[1:]
+
+            # Zoek juiste kolomindex voor Delft of Den Haag
+            kolom_delft = totaal_header.index("Aantal bakken toegevoegd Delft")
+            kolom_denhaag = totaal_header.index("Aantal bakken toegevoegd Den Haag")
 
             # Zoek rijnummer van vandaag
             rijnummer_vandaag = None
@@ -124,23 +129,34 @@ with tab1:
             aantal_gelogde_containers = sum(
                 1 for rij in container_rows[1:] if rij[datum_index][:10] == vandaag
             )
-
+            # Stel rijnwaarde op basis van bestaande of nieuwe rij
             if rijnummer_vandaag:
-                # Update bestaande rij (alle 3 kolommen opnieuw wegschrijven)
-                sheet_totaal.update(f"A{rijnummer_vandaag}:C{rijnummer_vandaag}", [[
-                    datum_met_tijd,
-                    aantal_vol,
-                    aantal_gelogde_containers
-                ]])
+                bestaande_waarden = sheet_totaal.row_values(rijnummer_vandaag)
+                while len(bestaande_waarden) < len(totaal_header):
+                    bestaande_waarden.append("")  # vul aan tot volledige breedte
+                bestaande_waarden[1] = str(aantal_vol)  # kolom B: Aantal volle bakken in Abel
+                if "Delft" in rol:
+                    bestaande_waarden[kolom_delft] = str(aantal_gelogde_containers)
+
+                elif "Den Haag" in rol:
+                    bestaande_waarden[kolom_denhaag] = str(aantal_gelogde_containers)
+                sheet_totaal.update(f"A{rijnummer_vandaag}:{chr(65 + len(totaal_header) - 1)}{rijnummer_vandaag}",
+                                    [bestaande_waarden])
                 st.toast("🔄 Logboek totaal bijgewerkt voor vandaag.")
+
             else:
-                # Nog niet gelogd vandaag → voeg nieuwe regel toe
-                sheet_totaal.append_row([
-                    datum_met_tijd,
-                    aantal_vol,
-                    aantal_gelogde_containers
-                ])
+                nieuwe_rij = [""] * len(totaal_header)
+                nieuwe_rij[0] = datum_met_tijd
+                nieuwe_rij[1] = str(aantal_vol)
+
+                if "Delft" in rol:
+                    nieuwe_rij[kolom_delft] = str(aantal_gelogde_containers)
+
+                elif "Den Haag" in rol:
+                    nieuwe_rij[kolom_denhaag] = str(aantal_gelogde_containers)
+                sheet_totaal.append_row(nieuwe_rij)
                 st.toast("📅 Dagelijkse log toegevoegd aan 'Logboek totaal'")
+
         except Exception as e:
             st.error("❌ Fout bij loggen of bijwerken van 'Logboek totaal'")
             st.exception(e)
