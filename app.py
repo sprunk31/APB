@@ -34,7 +34,7 @@ SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"
 SHEET_NAME = "Logboek Afvalcontainers"
 DATA_PATH = "huidige_dataset.csv"
 
-def voeg_toe_aan_logboek(data_dict, gebruiker):
+def voeg_toe_aan_logboek(data_dict):
     try:
         client = gspread.authorize(CREDENTIALS)
         sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
@@ -45,13 +45,11 @@ def voeg_toe_aan_logboek(data_dict, gebruiker):
             data_dict["Location code"],
             data_dict["Content type"],
             data_dict["Fill level (%)"],
-            data_dict["Datum"],
-            gebruiker
+            data_dict["Datum"]
         ])
     except Exception as e:
         st.error("⚠️ Fout bij loggen naar Google Sheets:")
         st.exception(e)
-
 
 # 📥 Data laden
 if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
@@ -64,7 +62,7 @@ tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Rou
 with tab1:
     col_role = st.columns([2, 8])[0]
     with col_role:
-        rol = st.selectbox("👤 Kies je rol:", ["Upload", "Gebruiker Delft", "Gebruiker Den Haag"], label_visibility="collapsed")
+        rol = st.selectbox("👤 Kies je rol:", ["Gebruiker", "Upload"], label_visibility="collapsed")
 
     if rol == "Upload":
         st.subheader("📤 Upload Excel-bestanden")
@@ -95,82 +93,8 @@ with tab1:
             df1_filtered.to_csv(DATA_PATH, index=False)
             st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
 
-    elif rol.startswith("Gebruiker") and 'df1_filtered' in st.session_state:
+    elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df = st.session_state['df1_filtered']
-
-        try:
-            client = gspread.authorize(CREDENTIALS)
-
-            vandaag = datetime.now().strftime("%Y-%m-%d")
-            datum_met_tijd = vandaag
-            aantal_vol = int((df['Fill level (%)'] >= 80).sum())
-
-            # Cache de logboek-data zodat er minder API-calls nodig zijn
-            if 'logboek_totaal_data' not in st.session_state:
-                sheet_totaal = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
-                sheet_containers = client.open_by_key(SHEET_ID).worksheet("Logboek Afvalcontainers")
-
-                st.session_state['sheet_totaal'] = sheet_totaal
-                st.session_state['sheet_containers'] = sheet_containers
-                st.session_state['logboek_totaal_data'] = sheet_totaal.get_all_values()
-                st.session_state['logboek_afvalcontainers_data'] = sheet_containers.get_all_values()
-
-            sheet_totaal = st.session_state['sheet_totaal']
-            sheet_containers = st.session_state['sheet_containers']
-            totaal_rows = st.session_state['logboek_totaal_data']
-            container_rows = st.session_state['logboek_afvalcontainers_data']
-
-            totaal_header = totaal_rows[0]
-            bestaande_rijen = totaal_rows[1:]
-
-            kolom_delft = totaal_header.index("Aantal bakken toegevoegd Delft")
-            kolom_denhaag = totaal_header.index("Aantal bakken toegevoegd Den Haag")
-
-            # Zoek rijnummer van vandaag
-            rijnummer_vandaag = None
-            for idx, rij in enumerate(bestaande_rijen, start=2):
-                if rij[0][:10] == vandaag:
-                    rijnummer_vandaag = idx
-                    break
-
-            # Tellen uit Logboek Afvalcontainers, gefilterd op gebruiker
-            container_header = container_rows[0]
-            datum_index = container_header.index("Datum")
-            gebruiker_index = container_header.index("Gebruiker")
-            aantal_gelogde_containers = sum(
-                1 for rij in container_rows[1:]
-                if rij[datum_index][:10] == vandaag and rij[gebruiker_index] == rol
-            )
-
-            if rijnummer_vandaag:
-                bestaande_waarden = sheet_totaal.row_values(rijnummer_vandaag)
-                while len(bestaande_waarden) < len(totaal_header):
-                    bestaande_waarden.append("")
-                bestaande_waarden[1] = str(aantal_vol)
-                if "Delft" in rol:
-                    bestaande_waarden[kolom_delft] = str(aantal_gelogde_containers)
-                elif "Den Haag" in rol:
-                    bestaande_waarden[kolom_denhaag] = str(aantal_gelogde_containers)
-
-                bereik = f"A{rijnummer_vandaag}:{chr(65 + len(totaal_header) - 1)}{rijnummer_vandaag}"
-                sheet_totaal.update(bereik, [bestaande_waarden])
-                st.session_state['logboek_totaal_data'][rijnummer_vandaag - 1] = bestaande_waarden
-                st.toast("🔄 Logboek totaal bijgewerkt.")
-            else:
-                nieuwe_rij = [""] * len(totaal_header)
-                nieuwe_rij[0] = datum_met_tijd
-                nieuwe_rij[1] = str(aantal_vol)
-                if "Delft" in rol:
-                    nieuwe_rij[kolom_delft] = str(aantal_gelogde_containers)
-                elif "Den Haag" in rol:
-                    nieuwe_rij[kolom_denhaag] = str(aantal_gelogde_containers)
-                sheet_totaal.append_row(nieuwe_rij)
-                st.session_state['logboek_totaal_data'].append(nieuwe_rij)
-                st.toast("📅 Nieuwe rij toegevoegd aan Logboek totaal.")
-
-        except Exception as e:
-            st.error("❌ Fout bij loggen of bijwerken van 'Logboek totaal'")
-            st.exception(e)
 
         # 🎯 KPI's
         kpi1, kpi2, kpi3 = st.columns(3)
@@ -216,7 +140,7 @@ with tab1:
                 nieuwe_waarde = row["Extra meegegeven"]
                 if nieuwe_waarde != oude_waarde:
                     st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"] = nieuwe_waarde
-                    voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d")}, gebruiker=rol)
+                    voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
                     wijzigingen += 1
             st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
             st.toast(f"✔️ {wijzigingen} wijziging(en) opgeslagen en gelogd.")
