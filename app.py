@@ -12,8 +12,7 @@ import branca
 from geopy.distance import geodesic
 from streamlit_autorefresh import st_autorefresh
 
-
-# 🎨 Custom styling
+# 🎨 Styling
 st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
 st.markdown("""
 <style>
@@ -24,26 +23,54 @@ st.markdown("""
 .stSelectbox > div, .stRadio > div {
     max-width: 250px;
 }
+.blink-button {
+    animation: blinker 1s linear infinite;
+    background-color: red;
+    color: white;
+    font-weight: bold;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+}
+@keyframes blinker {
+    50% { opacity: 0.2; }
+}
 </style>
 """, unsafe_allow_html=True)
-# ⏱️ Refresh de pagina elke 30 seconden (30000 ms)
+
+# 🔁 Auto-refresh
 st_autorefresh(interval=30000, key="datarefresh")
 
-
-st.title("♻️ Afvalcontainerbeheer Dashboard")
-
-# 📁 Google Sheets setup
+# 📁 Google Sheets
 SCOPE = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 CREDENTIALS = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=SCOPE)
 SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"
-SHEET_NAME = "Logboek Afvalcontainers"
+LOGSHEET = "Logboek Afvalcontainers"
 DATA_PATH = "huidige_dataset.csv"
 UPLOAD_STATUS_FILE = "upload_done.txt"
-if os.path.exists(UPLOAD_STATUS_FILE):
-    st.session_state["files_uploaded"] = True
-else:
-    st.session_state["files_uploaded"] = False
 
+# 🔍 Laatste logtijd ophalen
+client = gspread.authorize(CREDENTIALS)
+sheet = client.open_by_key(SHEET_ID).worksheet(LOGSHEET)
+all_logs = sheet.get_all_records()
+latest_log_time = max([r["Datum"] for r in all_logs]) if all_logs else ""
+
+# 🔁 Opslaan laatste bekende logtijd
+if "last_known_log" not in st.session_state:
+    st.session_state["last_known_log"] = latest_log_time
+
+new_logs = latest_log_time != st.session_state["last_known_log"]
+
+# ⬆️ Titel + knop
+st.title("\u267b\ufe0f Afvalcontainerbeheer Dashboard")
+st.markdown("### ✏️ Bewerkbare containers")
+if new_logs:
+    if st.button("🔁 Ververs (nieuw!)", key="refresh", help="Er zijn nieuwe wijzigingen door anderen.", use_container_width=False):
+        st.session_state["last_known_log"] = latest_log_time
+        st.rerun()
+    st.markdown('<button class="blink-button">Nieuwe wijzigingen</button>', unsafe_allow_html=True)
+else:
+    st.markdown("Geen nieuwe wijzigingen.")
 
 def voeg_toe_aan_logboek(data_dict):
     try:
