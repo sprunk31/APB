@@ -27,7 +27,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 # ⏱️ Refresh de pagina elke 30 seconden (30000 ms)
-st_autorefresh(interval=30000, key="datarefresh")
+st_autorefresh(interval=1000, key="datarefresh")
 
 
 st.title("♻️ Afvalcontainerbeheer Dashboard")
