@@ -10,6 +10,8 @@ from folium.plugins import HeatMap
 from streamlit_folium import st_folium
 import branca
 from geopy.distance import geodesic
+from streamlit_autorefresh import st_autorefresh
+
 
 # 🎨 Custom styling
 st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
@@ -24,6 +26,9 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
+# ⏱️ Refresh de pagina elke 30 seconden (30000 ms)
+st_autorefresh(interval=30000, key="datarefresh")
+
 
 st.title("♻️ Afvalcontainerbeheer Dashboard")
 
