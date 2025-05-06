@@ -10,8 +10,6 @@ from folium.plugins import HeatMap
 from streamlit_folium import st_folium
 import branca
 from geopy.distance import geodesic
-from streamlit_autorefresh import st_autorefresh
-
 
 # 🎨 Custom styling
 st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
@@ -26,9 +24,6 @@ st.markdown("""
 }
 </style>
 """, unsafe_allow_html=True)
-# ⏱️ Refresh de pagina elke 30 seconden (30000 ms)
-st_autorefresh(interval=30000, key="datarefresh")
-
 
 st.title("♻️ Afvalcontainerbeheer Dashboard")
 
@@ -38,12 +33,6 @@ CREDENTIALS = Credentials.from_service_account_info(st.secrets["gcp_service_acco
 SHEET_ID = "11svyug6tDpb8YfaI99RyALevzjSSLn1UshSwVQYlcNw"
 SHEET_NAME = "Logboek Afvalcontainers"
 DATA_PATH = "huidige_dataset.csv"
-UPLOAD_STATUS_FILE = "upload_done.txt"
-if os.path.exists(UPLOAD_STATUS_FILE):
-    st.session_state["files_uploaded"] = True
-else:
-    st.session_state["files_uploaded"] = False
-
 
 def voeg_toe_aan_logboek(data_dict):
     try:
@@ -56,8 +45,7 @@ def voeg_toe_aan_logboek(data_dict):
             data_dict["Location code"],
             data_dict["Content type"],
             data_dict["Fill level (%)"],
-            data_dict["Datum"],
-            data_dict["Gebruiker"]
+            data_dict["Datum"]
         ])
     except Exception as e:
         st.error("⚠️ Fout bij loggen naar Google Sheets:")
@@ -74,12 +62,7 @@ tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Rou
 with tab1:
     col_role = st.columns([2, 8])[0]
     with col_role:
-        rollen = ["Delft", "Den Haag"]
-        if not st.session_state.get("files_uploaded", False):
-            rollen = ["Upload"] + rollen
-
-        default_rol = "Delft" if st.session_state.get("files_uploaded", False) else "Upload"
-        rol = st.selectbox("👤 Kies je rol:", rollen, index=rollen.index(default_rol), label_visibility="collapsed")
+        rol = st.selectbox("👤 Kies je rol:", ["Gebruiker", "Upload"], label_visibility="collapsed")
 
     if rol == "Upload":
         st.subheader("📤 Upload Excel-bestanden")
@@ -100,6 +83,7 @@ with tab1:
             df1_filtered["Content type"] = df1_filtered["Content type"].apply(
                 lambda x: "Glas" if "glass" in str(x).lower() else x
             )
+
             df1_filtered['CombinatieTelling'] = df1_filtered.groupby(['Location code', 'Content type'])['Content type'].transform('count')
             df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(['Location code', 'Content type'])['Fill level (%)'].transform('mean')
             df1_filtered['OpRoute'] = df1_filtered['Container name'].isin(df2['Omschrijving'].values).map({True: 'Ja', False: 'Nee'})
@@ -107,21 +91,15 @@ with tab1:
 
             st.session_state['df1_filtered'] = df1_filtered
             df1_filtered.to_csv(DATA_PATH, index=False)
-            with open(UPLOAD_STATUS_FILE, "w") as f:
-                f.write("done")
-
-            st.session_state["files_uploaded"] = True
-
             st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
 
-
-    elif rol in ["Delft", "Den Haag"] and 'df1_filtered' in st.session_state:
+    elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df = st.session_state['df1_filtered']
 
         # 🎯 KPI's
         kpi1, kpi2, kpi3 = st.columns(3)
         kpi1.metric("📦 Containers", len(df))
-        kpi2.metric("🔴 >80% gevuld", (df['Fill level (%)'] >= 80).sum())
+        kpi2.metric("📊 Gem. vulgraad", f"{df['Fill level (%)'].mean():.1f}%")
         kpi3.metric("🚚 Op route", df['OpRoute'].value_counts().get('Ja', 0))
 
         # 🔍 Filters
@@ -138,20 +116,7 @@ with tab1:
         df_display = df_display.sort_values(by="GemiddeldeVulgraad", ascending=False)
 
         zichtbaar = ["Container name", "Address", "City", "Location code", "Content type", "Fill level (%)", "CombinatieTelling", "GemiddeldeVulgraad", "OpRoute", "Extra meegegeven"]
-        # Haal gelogde container namen op uit Google Sheets
-        try:
-            client = gspread.authorize(CREDENTIALS)
-            sheet = client.open_by_key(SHEET_ID).worksheet(SHEET_NAME)
-            gelogde_rows = sheet.get_all_records()
-            gelogde_namen = {row["Container name"] for row in gelogde_rows}
-        except Exception as e:
-            st.error("❌ Fout bij ophalen van gelogde containers uit Google Sheets.")
-            st.exception(e)
-            gelogde_namen = set()
-
-        # Verdeel op basis van deze log
-        bewerkbare_rijen = df_display[~df_display["Container name"].isin(gelogde_namen)]
-        reeds_gelogd = df_display[df_display["Container name"].isin(gelogde_namen)]
+        bewerkbare_rijen = df_display[df_display["Extra meegegeven"] == False]
 
         st.markdown("### ✏️ Bewerkbare containers")
         gb = GridOptionsBuilder.from_dataframe(bewerkbare_rijen[zichtbaar])
@@ -175,13 +140,9 @@ with tab1:
                 nieuwe_waarde = row["Extra meegegeven"]
                 if nieuwe_waarde != oude_waarde:
                     st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"] = nieuwe_waarde
-                    voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d"), "Gebruiker": rol})
+                    voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
                     wijzigingen += 1
             st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
-
-            # Herlaad de dataset vers vanuit de CSV om synchronisatie af te dwingen
-            st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
-
             st.toast(f"✔️ {wijzigingen} wijziging(en) opgeslagen en gelogd.")
             st.rerun()
 
@@ -215,9 +176,7 @@ with tab2:
         df_gemiddeld = df_nabij.groupby(["Container location", "Content type"])["Fill level (%)"].mean().reset_index()
         df_gemiddeld[["lat", "lon"]] = df_gemiddeld["Container location"].str.split(",", expand=True).astype(float)
 
-        df_gemiddeld = df_gemiddeld.dropna(subset=["lat", "lon", "Fill level (%)"])
         heat_data = [[row["lat"], row["lon"], row["Fill level (%)"]] for _, row in df_gemiddeld.iterrows()]
-
         HeatMap(heat_data, radius=15, min_opacity=0.4, max_val=100).add_to(m)
 
         for _, row in df_nabij.iterrows():
@@ -264,42 +223,53 @@ with tab2:
 
 # -------------------- ROUTE STATUS --------------------
 with tab3:
+    st.header("📋 Status per route")
+
     if 'file2' not in st.session_state:
-        st.warning("❗ Upload eerst 'Bestand van Pieterbas' via tabblad Dashboard.")
+        st.warning("❗ Upload eerst 'Bestand van Pieterbas' via het dashboard.")
     else:
         df_routes = st.session_state['file2']
-        unieke_routes = sorted(df_routes["Route Omschriving"].dropna().unique())
+        unieke_routes = sorted(df_routes["Route Omschrivijng"].dropna().unique())
 
-        st.markdown("### 🛣️ Route status doorgeven")
-        route = st.selectbox("Kies een route", unieke_routes)
+        # 👣 Stap 1: Route kiezen
+        route = st.selectbox("1️⃣ Kies een route", unieke_routes, index=0)
 
+        # 👣 Stap 2: Status kiezen
         status_opties = ["Actueel", "Gedeeltelijk niet gereden door:", "Volledig niet gereden door:"]
-        gekozen_status = st.selectbox("Status", status_opties)
+        gekozen_status = st.selectbox("2️⃣ Status van de route", status_opties)
 
+        # 📝 Reden (indien nodig)
         reden = ""
         if "niet gereden" in gekozen_status:
-            reden = st.text_input("📌 Geef de reden op")
+            reden = st.text_input("3️⃣ Geef een reden op")
 
+        # 👆 Bevestigknop
         if st.button("✅ Bevestig status"):
             try:
                 client = gspread.authorize(CREDENTIALS)
                 sheet = client.open_by_key(SHEET_ID).worksheet("Logboek route")
                 records = sheet.get_all_records()
+                vandaag = datetime.now().strftime("%Y-%m-%d")
 
                 if gekozen_status == "Actueel":
-                    # Zoek het laatst gelogde record van deze route met afwijking
+                    # Verwijder record van vandaag (alleen als er eerder een afwijking is gelogd)
+                    verwijderd = False
                     for i in reversed(range(len(records))):
                         record = records[i]
-                        if record["Route"] == route and record["Status"] in [
-                            "Gedeeltelijk niet gereden door", "Volledig niet gereden door"
-                        ]:
-                            sheet.delete_rows(i + 2)  # +2 omdat header op rij 1 staat
-                            st.success(f"✅ Vorige afwijking van '{route}' is verwijderd uit het logboek.")
+                        record_datum = record["Datum"][:10]
+                        if (
+                                record["Route"] == route and
+                                record["Status"] in ["Gedeeltelijk niet gereden door", "Volledig niet gereden door"] and
+                                record_datum == vandaag
+                        ):
+                            sheet.delete_rows(i + 2)  # +2 want header zit op rij 1
+                            verwijderd = True
+                            st.success(f"🗑️ Afwijking voor '{route}' op {vandaag} is verwijderd.")
                             break
-                    else:
-                        st.info("ℹ️ Geen afwijking gevonden voor deze route om te verwijderen.")
+                    if not verwijderd:
+                        st.info("ℹ️ Er is vandaag nog geen afwijking gelogd voor deze route.")
                 else:
-                    if reden.strip() == "":
+                    if not reden.strip():
                         st.warning("⚠️ Vul een reden in voordat je logt.")
                     else:
                         sheet.append_row([
@@ -308,8 +278,7 @@ with tab3:
                             reden,
                             datetime.now().strftime("%Y-%m-%d %H:%M:%S")
                         ])
-                        st.success("📝 Nieuwe afwijking succesvol gelogd.")
+                        st.success("📝 Afwijking succesvol gelogd.")
             except Exception as e:
                 st.error("❌ Fout bij communiceren met Google Sheets.")
                 st.exception(e)
-##
