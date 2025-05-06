@@ -235,7 +235,7 @@ with tab3:
         st.warning("❗ Upload eerst 'Bestand van Pieterbas' via tabblad Dashboard.")
     else:
         df_routes = st.session_state['file2']
-        unieke_routes = sorted(df_routes["Route Omschriving"].dropna().unique())
+        unieke_routes = sorted(df_routes["Route Omschrijving"].dropna().unique())
 
         st.markdown("### 🛣️ Route status doorgeven")
         route = st.selectbox("Kies een route", unieke_routes)
