@@ -110,7 +110,7 @@ with tab1:
             bestaande_datums = [rij[:10] for rij in bestaande_rijen if rij.strip() != ""]
 
             if vandaag not in bestaande_datums:
-                sheet.append_row([vandaag + " 00:00:00", aantal_vol])
+                sheet.append_row([vandaag, aantal_vol])
                 st.toast("📅 Dagelijkse log toegevoegd aan 'Logboek totaal'")
         except Exception as e:
             st.error("❌ Fout bij loggen naar 'Logboek totaal'")
