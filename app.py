@@ -96,6 +96,21 @@ with tab1:
     elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df = st.session_state['df1_filtered']
 
+        # 📅 + 🔴 Systeemdatum + aantal volle bakken loggen in 'Logboek totaal'
+        if 'totaal_gelogd' not in st.session_state:
+            try:
+                client = gspread.authorize(CREDENTIALS)
+                sheet = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
+
+                datum = datetime.now().strftime("%Y-%m-%d")
+                aantal_vol = (df['Fill level (%)'] >= 80).sum()
+
+                sheet.append_row([datum, aantal_vol])  # Zorg dat kolom A = Datum, B = Aantal volle bakken
+                st.session_state['totaal_gelogd'] = True
+            except Exception as e:
+                st.error("❌ Fout bij loggen naar 'Logboek totaal'")
+                st.exception(e)
+
         # 🎯 KPI's
         kpi1, kpi2, kpi3 = st.columns(3)
         kpi1.metric("📦 Containers", len(df))
@@ -272,12 +287,3 @@ with tab3:
                 st.error("❌ Fout bij communiceren met Google Sheets.")
                 st.exception(e)
 
-    if 'datum_gelogd' not in st.session_state:
-        try:
-            client = gspread.authorize(CREDENTIALS)
-            sheet = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
-            sheet.append_row([datetime.now().strftime("%Y-%m-%d")])
-            st.session_state['datum_gelogd'] = True
-        except Exception as e:
-            st.error("❌ Fout bij loggen van systeemdatum naar 'Logboek totaal'")
-            st.exception(e)
