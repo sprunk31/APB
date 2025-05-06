@@ -62,7 +62,11 @@ tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Rou
 with tab1:
     col_role = st.columns([2, 8])[0]
     with col_role:
-        rol = st.selectbox("👤 Kies je rol:", ["Gebruiker", "Upload"], label_visibility="collapsed")
+        rollen = ["Gebruiker"]
+        if not st.session_state.get("files_uploaded", False):
+            rollen.append("Upload")
+
+        rol = st.selectbox("👤 Kies je rol:", rollen, label_visibility="collapsed")
 
     if rol == "Upload":
         st.subheader("📤 Upload Excel-bestanden")
@@ -91,6 +95,7 @@ with tab1:
 
             st.session_state['df1_filtered'] = df1_filtered
             df1_filtered.to_csv(DATA_PATH, index=False)
+            st.session_state["files_uploaded"] = True
             st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
 
     elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
