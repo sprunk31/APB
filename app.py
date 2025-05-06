@@ -234,8 +234,12 @@ with tab3:
     if 'file2' not in st.session_state:
         st.warning("❗ Upload eerst 'Bestand van Pieterbas' via tabblad Dashboard.")
     else:
-        df_routes = st.session_state['file2']
-        unieke_routes = sorted(df_routes["Route Omschrijving"].dropna().unique())
+        df_routes = st.session_state.get('file2')
+
+        if df_routes is None or not isinstance(df_routes, pd.DataFrame):
+            st.error("❌ Kon bestand van Pieterbas niet correct laden. Herlaad of upload opnieuw via het Dashboard.")
+        else:
+            unieke_routes = sorted(df_routes["Route Omschrijving"].dropna().unique())
 
         st.markdown("### 🛣️ Route status doorgeven")
         route = st.selectbox("Kies een route", unieke_routes)
