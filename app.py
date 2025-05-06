@@ -51,23 +51,6 @@ def voeg_toe_aan_logboek(data_dict):
         st.error("⚠️ Fout bij loggen naar Google Sheets:")
         st.exception(e)
 
-def log_kpi_naar_totaal(vol_bakken, aantal_toegevoegd):
-    try:
-        client = gspread.authorize(CREDENTIALS)
-        sheet = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
-        vandaag = datetime.now().strftime("%Y-%m-%d")
-
-        records = sheet.get_all_records()
-        bestaand = next((i for i, r in enumerate(records) if r["Datum"] == vandaag), None)
-
-        if bestaand is not None:
-            sheet.update(f"A{bestaand+2}:C{bestaand+2}", [[vandaag, vol_bakken, aantal_toegevoegd]])
-        else:
-            sheet.append_row([vandaag, vol_bakken, aantal_toegevoegd])
-    except Exception as e:
-        st.error("❌ Fout bij loggen naar Logboek totaal:")
-        st.exception(e)
-
 # 📥 Data laden
 if 'df1_filtered' not in st.session_state and os.path.exists(DATA_PATH):
     st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
@@ -89,7 +72,7 @@ with tab1:
         if file1 and file2:
             df1 = pd.read_excel(file1)
             df2 = pd.read_excel(file2)
-            st.session_state['file2'] = df2
+            st.session_state['file2'] = df2  # Voeg toe om file2 in session_state op te slaan
 
             df1_filtered = df1[
                 (df1['Operational state'] == 'In use') &
@@ -108,21 +91,18 @@ with tab1:
 
             st.session_state['df1_filtered'] = df1_filtered
             df1_filtered.to_csv(DATA_PATH, index=False)
-
-            # 📤 Log direct het aantal containers met ≥ 80% vulgraad
-            aantal_vol = (df1_filtered['Fill level (%)'] >= 80).sum()
-            log_kpi_naar_totaal(aantal_vol, 0)
-
             st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
 
     elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df = st.session_state['df1_filtered']
 
+        # 🎯 KPI's
         kpi1, kpi2, kpi3 = st.columns(3)
         kpi1.metric("📦 Containers", len(df))
         kpi2.metric("🔴 >80% gevuld", (df['Fill level (%)'] >= 80).sum())
         kpi3.metric("🚚 Op route", df['OpRoute'].value_counts().get('Ja', 0))
 
+        # 🔍 Filters
         with st.expander("🔎 Filters", expanded=True):
             filter_col1, filter_col2 = st.columns(2)
             with filter_col1:
@@ -162,11 +142,7 @@ with tab1:
                     st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"] = nieuwe_waarde
                     voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S")})
                     wijzigingen += 1
-
             st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
-            aantal_vol = (st.session_state['df1_filtered']['Fill level (%)'] >= 80).sum()
-            log_kpi_naar_totaal(aantal_vol, wijzigingen)
-
             st.toast(f"✔️ {wijzigingen} wijziging(en) opgeslagen en gelogd.")
             st.rerun()
 
@@ -270,12 +246,13 @@ with tab3:
                 records = sheet.get_all_records()
 
                 if gekozen_status == "Actueel":
+                    # Zoek het laatst gelogde record van deze route met afwijking
                     for i in reversed(range(len(records))):
                         record = records[i]
                         if record["Route"] == route and record["Status"] in [
                             "Gedeeltelijk niet gereden door", "Volledig niet gereden door"
                         ]:
-                            sheet.delete_rows(i + 2)
+                            sheet.delete_rows(i + 2)  # +2 omdat header op rij 1 staat
                             st.success(f"✅ Vorige afwijking van '{route}' is verwijderd uit het logboek.")
                             break
                     else:
