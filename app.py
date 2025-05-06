@@ -65,11 +65,20 @@ def write_cache(df: pd.DataFrame):
     ws = get_sheet(CACHE_SHEET)
     ws.clear()
     vandaag = datetime.now().strftime("%Y-%m-%d")
-    header = ["Datum"] + df.columns.tolist()
-    rows = [[vandaag] + row.tolist() for _, row in df.iterrows()]
+
+    # Zet alles om naar string, zodat JSON veilig is
+    df_str = df.astype(str)
+    header = ["Datum"] + df_str.columns.tolist()
+
+    # Bouw de rijen: voor iedere DataFrame-rij een lijst met strings
+    rows = [[vandaag] + row for row in df_str.values.tolist()]
+
+    # append_rows met alleen zuivere Python‐strings
     ws.append_rows([header] + rows, value_input_option="RAW")
-    # Clear Streamlit cache zodat iedereen direct de nieuwe data ziet
+
+    # Cache clear
     st.cache_data.clear()
+
 
 # 5) Log het dagtotaal éénmalig in 'Logboek totaal'
 def log_daily_totals(df: pd.DataFrame):
