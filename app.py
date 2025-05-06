@@ -102,30 +102,47 @@ with tab1:
             sheet_containers = client.open_by_key(SHEET_ID).worksheet("Logboek Afvalcontainers")
 
             vandaag = datetime.now().strftime("%Y-%m-%d")
+            datum_met_tijd = vandaag
             aantal_vol = int((df['Fill level (%)'] >= 80).sum())
 
-            # Bestaande datums in 'Logboek totaal' ophalen
-            bestaande_rijen = sheet_totaal.col_values(1)
-            bestaande_datums = [rij[:10] for rij in bestaande_rijen if rij.strip() != ""]
+            # Alle rijen uit Logboek totaal ophalen
+            totaal_rows = sheet_totaal.get_all_values()
+            totaal_header = totaal_rows[0]
+            bestaande_rijen = totaal_rows[1:]
 
-            if vandaag not in bestaande_datums:
-                # Alle rijen ophalen uit 'Logboek Afvalcontainers'
-                container_rows = sheet_containers.get_all_values()
-                container_header = container_rows[0]
-                datum_index = container_header.index("Datum")
+            # Zoek rijnummer van vandaag
+            rijnummer_vandaag = None
+            for idx, rij in enumerate(bestaande_rijen, start=2):  # start=2 vanwege header
+                if rij[0][:10] == vandaag:
+                    rijnummer_vandaag = idx
+                    break
 
-                aantal_gelogde_containers = sum(
-                    1 for rij in container_rows[1:] if rij[datum_index][:10] == vandaag
-                )
+            # Tel aantal gelogde containers in Logboek Afvalcontainers
+            container_rows = sheet_containers.get_all_values()
+            container_header = container_rows[0]
+            datum_index = container_header.index("Datum")
+            aantal_gelogde_containers = sum(
+                1 for rij in container_rows[1:] if rij[datum_index][:10] == vandaag
+            )
 
+            if rijnummer_vandaag:
+                # Update bestaande rij (alle 3 kolommen opnieuw wegschrijven)
+                sheet_totaal.update(f"A{rijnummer_vandaag}:C{rijnummer_vandaag}", [[
+                    datum_met_tijd,
+                    aantal_vol,
+                    aantal_gelogde_containers
+                ]])
+                st.toast("🔄 Logboek totaal bijgewerkt voor vandaag.")
+            else:
+                # Nog niet gelogd vandaag → voeg nieuwe regel toe
                 sheet_totaal.append_row([
-                    vandaag,
+                    datum_met_tijd,
                     aantal_vol,
                     aantal_gelogde_containers
                 ])
                 st.toast("📅 Dagelijkse log toegevoegd aan 'Logboek totaal'")
         except Exception as e:
-            st.error("❌ Fout bij loggen naar 'Logboek totaal'")
+            st.error("❌ Fout bij loggen of bijwerken van 'Logboek totaal'")
             st.exception(e)
 
         # 🎯 KPI's
