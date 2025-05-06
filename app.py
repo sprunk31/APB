@@ -74,7 +74,7 @@ with tab1:
                 logboek_rows = sheet.get_all_records()
                 reeds_gelogd = any(row["Datum"][:10] == vandaag for row in logboek_rows)
                 if not reeds_gelogd:
-                    aantal_vol = (df1_filtered['Fill level (%)'] >= 80).sum()
+                    aantal_vol = int((df1_filtered['Fill level (%)'] >= 80).sum())
                     sheet.append_row([
                         vandaag,
                         aantal_vol,
