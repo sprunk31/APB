@@ -100,28 +100,40 @@ with tab1:
 
         try:
             client = gspread.authorize(CREDENTIALS)
-            sheet_totaal = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
-            sheet_containers = client.open_by_key(SHEET_ID).worksheet("Logboek Afvalcontainers")
+
             vandaag = datetime.now().strftime("%Y-%m-%d")
             datum_met_tijd = vandaag
             aantal_vol = int((df['Fill level (%)'] >= 80).sum())
 
-            # Headers en rijen ophalen
-            totaal_rows = sheet_totaal.get_all_values()
+            # Cache de logboek-data zodat er minder API-calls nodig zijn
+            if 'logboek_totaal_data' not in st.session_state:
+                sheet_totaal = client.open_by_key(SHEET_ID).worksheet("Logboek totaal")
+                sheet_containers = client.open_by_key(SHEET_ID).worksheet("Logboek Afvalcontainers")
+
+                st.session_state['sheet_totaal'] = sheet_totaal
+                st.session_state['sheet_containers'] = sheet_containers
+                st.session_state['logboek_totaal_data'] = sheet_totaal.get_all_values()
+                st.session_state['logboek_afvalcontainers_data'] = sheet_containers.get_all_values()
+
+            sheet_totaal = st.session_state['sheet_totaal']
+            sheet_containers = st.session_state['sheet_containers']
+            totaal_rows = st.session_state['logboek_totaal_data']
+            container_rows = st.session_state['logboek_afvalcontainers_data']
+
             totaal_header = totaal_rows[0]
             bestaande_rijen = totaal_rows[1:]
+
             kolom_delft = totaal_header.index("Aantal bakken toegevoegd Delft")
             kolom_denhaag = totaal_header.index("Aantal bakken toegevoegd Den Haag")
 
-            # Zoek rij van vandaag
+            # Zoek rijnummer van vandaag
             rijnummer_vandaag = None
-            for idx, rij in enumerate(bestaande_rijen, start=2):  # start=2 voor header
+            for idx, rij in enumerate(bestaande_rijen, start=2):
                 if rij[0][:10] == vandaag:
                     rijnummer_vandaag = idx
                     break
 
             # Tellen uit Logboek Afvalcontainers, gefilterd op gebruiker
-            container_rows = sheet_containers.get_all_values()
             container_header = container_rows[0]
             datum_index = container_header.index("Datum")
             gebruiker_index = container_header.index("Gebruiker")
@@ -134,19 +146,17 @@ with tab1:
                 bestaande_waarden = sheet_totaal.row_values(rijnummer_vandaag)
                 while len(bestaande_waarden) < len(totaal_header):
                     bestaande_waarden.append("")
-                bestaande_waarden[1] = str(aantal_vol)  # kolom 2 = Abel
+                bestaande_waarden[1] = str(aantal_vol)
                 if "Delft" in rol:
                     bestaande_waarden[kolom_delft] = str(aantal_gelogde_containers)
                 elif "Den Haag" in rol:
                     bestaande_waarden[kolom_denhaag] = str(aantal_gelogde_containers)
 
-                # Update de hele rij
                 bereik = f"A{rijnummer_vandaag}:{chr(65 + len(totaal_header) - 1)}{rijnummer_vandaag}"
                 sheet_totaal.update(bereik, [bestaande_waarden])
+                st.session_state['logboek_totaal_data'][rijnummer_vandaag - 1] = bestaande_waarden
                 st.toast("🔄 Logboek totaal bijgewerkt.")
-
             else:
-                # Nog geen rij voor vandaag → maak nieuwe met juiste kolom gevuld
                 nieuwe_rij = [""] * len(totaal_header)
                 nieuwe_rij[0] = datum_met_tijd
                 nieuwe_rij[1] = str(aantal_vol)
@@ -155,13 +165,11 @@ with tab1:
                 elif "Den Haag" in rol:
                     nieuwe_rij[kolom_denhaag] = str(aantal_gelogde_containers)
                 sheet_totaal.append_row(nieuwe_rij)
+                st.session_state['logboek_totaal_data'].append(nieuwe_rij)
                 st.toast("📅 Nieuwe rij toegevoegd aan Logboek totaal.")
 
-
         except Exception as e:
-
             st.error("❌ Fout bij loggen of bijwerken van 'Logboek totaal'")
-
             st.exception(e)
 
         # 🎯 KPI's
