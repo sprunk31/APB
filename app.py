@@ -68,7 +68,7 @@ tab1, tab2, tab3 = st.tabs(["📊 Dashboard", "🗺️ Kaartweergave", "📋 Rou
 with tab1:
     col_role = st.columns([2, 8])[0]
     with col_role:
-        rollen = ["Gebruiker"]
+        rollen = ["Gebruiker Delft", "Gebruiker Den Haag"]
         if not st.session_state.get("files_uploaded", False):
             rollen.append("Upload")
 
