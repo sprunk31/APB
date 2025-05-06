@@ -157,9 +157,13 @@ with tab1:
                 nieuwe_waarde = row["Extra meegegeven"]
                 if nieuwe_waarde != oude_waarde:
                     st.session_state['df1_filtered'].loc[mask, "Extra meegegeven"] = nieuwe_waarde
-                    voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "Gebruiker": rol})
+                    voeg_toe_aan_logboek({**row, "Datum": datetime.now().strftime("%Y-%m-%d"), "Gebruiker": rol})
                     wijzigingen += 1
             st.session_state['df1_filtered'].to_csv(DATA_PATH, index=False)
+
+            # Herlaad de dataset vers vanuit de CSV om synchronisatie af te dwingen
+            st.session_state['df1_filtered'] = pd.read_csv(DATA_PATH)
+
             st.toast(f"✔️ {wijzigingen} wijziging(en) opgeslagen en gelogd.")
             st.rerun()
 
