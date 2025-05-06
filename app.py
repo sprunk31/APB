@@ -65,33 +65,41 @@ with tab1:
         rol = st.selectbox("👤 Kies je rol:", ["Gebruiker", "Upload"], label_visibility="collapsed")
 
     if rol == "Upload":
-        st.subheader("📤 Upload Excel-bestanden")
-        file1 = st.file_uploader("Bestand van Abel", type=["xlsx"])
-        file2 = st.file_uploader("Bestand van Pieterbas", type=["xlsx"])
+        if st.session_state.get("upload_voltooid", False):
+            st.info("✅ Beide bestanden zijn al geüpload en verwerkt. Upload is niet meer nodig.")
+        else:
+            st.subheader("📤 Upload Excel-bestanden")
+            file1 = st.file_uploader("Bestand van Abel", type=["xlsx"], key="file1")
+            file2 = st.file_uploader("Bestand van Pieterbas", type=["xlsx"], key="file2")
 
-        if file1 and file2:
-            df1 = pd.read_excel(file1)
-            df2 = pd.read_excel(file2)
-            st.session_state['file2'] = df2  # Voeg toe om file2 in session_state op te slaan
+            if file1 and file2:
+                df1 = pd.read_excel(file1)
+                df2 = pd.read_excel(file2)
+                st.session_state['file2'] = df2
 
-            df1_filtered = df1[
-                (df1['Operational state'] == 'In use') &
-                (df1['Status'] == 'In use') &
-                (df1['On hold'] == 'No')
-            ].copy()
+                df1_filtered = df1[
+                    (df1['Operational state'] == 'In use') &
+                    (df1['Status'] == 'In use') &
+                    (df1['On hold'] == 'No')
+                    ].copy()
 
-            df1_filtered["Content type"] = df1_filtered["Content type"].apply(
-                lambda x: "Glas" if "glass" in str(x).lower() else x
-            )
+                df1_filtered["Content type"] = df1_filtered["Content type"].apply(
+                    lambda x: "Glas" if "glass" in str(x).lower() else x
+                )
 
-            df1_filtered['CombinatieTelling'] = df1_filtered.groupby(['Location code', 'Content type'])['Content type'].transform('count')
-            df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(['Location code', 'Content type'])['Fill level (%)'].transform('mean')
-            df1_filtered['OpRoute'] = df1_filtered['Container name'].isin(df2['Omschrijving'].values).map({True: 'Ja', False: 'Nee'})
-            df1_filtered['Extra meegegeven'] = False
+                df1_filtered['CombinatieTelling'] = df1_filtered.groupby(['Location code', 'Content type'])[
+                    'Content type'].transform('count')
+                df1_filtered['GemiddeldeVulgraad'] = df1_filtered.groupby(['Location code', 'Content type'])[
+                    'Fill level (%)'].transform('mean')
+                df1_filtered['OpRoute'] = df1_filtered['Container name'].isin(df2['Omschrijving'].values).map(
+                    {True: 'Ja', False: 'Nee'})
+                df1_filtered['Extra meegegeven'] = False
 
-            st.session_state['df1_filtered'] = df1_filtered
-            df1_filtered.to_csv(DATA_PATH, index=False)
-            st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
+                st.session_state['df1_filtered'] = df1_filtered
+                df1_filtered.to_csv(DATA_PATH, index=False)
+                st.session_state["upload_voltooid"] = True  # ✅ markeer upload als voltooid
+                st.success("✅ Gegevens succesvol verwerkt en gedeeld.")
+
 
     elif rol == "Gebruiker" and 'df1_filtered' in st.session_state:
         df = st.session_state['df1_filtered']
