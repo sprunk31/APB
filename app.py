@@ -10,6 +10,22 @@ from folium.plugins import HeatMap
 from streamlit_folium import st_folium
 import branca
 from geopy.distance import geodesic
+import folium
+from streamlit_folium import st_folium
+
+def toon_kaart(container_row):
+    lat, lon = map(float, container_row["Container location"].split(","))
+    m = folium.Map(location=[lat, lon], zoom_start=17)
+
+    folium.Marker(
+        [lat, lon],
+        popup=f"<b>{container_row['Container name']}</b><br>Locatiecode: {container_row['Location code']}<br>Vulgraad: {container_row['Fill level (%)']}%",
+        tooltip="Klik voor info",
+        icon=folium.Icon(color="green" if container_row["Fill level (%)"] < 80 else "red")
+    ).add_to(m)
+
+    st_folium(m, height=400, width=700)
+
 
 # 🎨 Custom styling
 st.set_page_config(page_title="Afvalcontainerbeheer", layout="wide")
@@ -149,6 +165,19 @@ with tab1:
         st.markdown("### 🔒 Reeds gelogde containers")
         reeds_gelogd = df_display[df_display["Extra meegegeven"] == True]
         st.dataframe(reeds_gelogd[zichtbaar], use_container_width=True)
+
+        # 🔍 Containerkaart tonen
+        st.markdown("### 🗺️ Locatie van container bekijken")
+
+        container_opties = bewerkbare_rijen["Container name"].unique()
+
+        if len(container_opties) > 0:
+            geselecteerd = st.selectbox("Selecteer een container om op kaart te tonen", container_opties,
+                                        key="kaart_selectie")
+            container_rij = bewerkbare_rijen[bewerkbare_rijen["Container name"] == geselecteerd].iloc[0]
+            toon_kaart(container_rij)
+        else:
+            st.info("📭 Geen containers beschikbaar om op kaart te tonen.")
 
 # -------------------- KAART --------------------
 with tab2:
