@@ -117,8 +117,8 @@ with tab1:
                     break
 
             # Bepaal kolomnummers (nul-gebaseerd → voor update is 1-gebaseerd)
-            kolom_delft = totaal_header.index("Aantal bakken\ntoegevoegd Delft") + 1
-            kolom_denhaag = totaal_header.index("Aantal bakken\ntoegevoegd Den Haag") + 1
+            kolom_delft = totaal_header.index("Aantal bakken toegevoegd Delft") + 1
+            kolom_denhaag = totaal_header.index("Aantal bakken toegevoegd Den Haag") + 1
 
             # Tel aantal gelogde containers in 'Logboek Afvalcontainers' voor vandaag
             container_rows = sheet_containers.get_all_values()
